@@ -489,6 +489,57 @@ const BlogAdmin: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Author Information */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Author Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.author?.name || ''}
+                    onChange={e => setEditingBlog({
+                      ...editingBlog,
+                      author: {
+                        ...editingBlog.author,
+                        name: e.target.value,
+                        email: editingBlog.author?.email || 'admin@sosapient.com'
+                      }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Enter author name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Author Profile Image URL
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.author?.image || ''}
+                    onChange={e => setEditingBlog({
+                      ...editingBlog,
+                      author: {
+                        ...editingBlog.author,
+                        image: e.target.value,
+                        name: editingBlog.author?.name || 'Admin User',
+                        email: editingBlog.author?.email || 'admin@sosapient.com'
+                      }
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Enter author profile image URL"
+                  />
+                  {editingBlog.author?.image && (
+                    <div className="mt-2">
+                      <img
+                        src={editingBlog.author.image}
+                        alt="Author Preview"
+                        className="w-16 h-16 object-cover rounded-full border-2 border-gray-300"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* Category */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -769,6 +820,9 @@ const BlogAdmin: React.FC = () => {
                       Post
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Author
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Category
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -804,6 +858,25 @@ const BlogAdmin: React.FC = () => {
                             </div>
                             <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
                               {blog.excerpt}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {blog.author?.image && (
+                            <img
+                              src={blog.author.image}
+                              alt={blog.author.name || 'Author'}
+                              className="w-8 h-8 rounded-full object-cover mr-3"
+                            />
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {blog.author?.name || 'Unknown Author'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {blog.author?.email || ''}
                             </div>
                           </div>
                         </div>
