@@ -59,7 +59,7 @@ const BlogPost: React.FC = () => {
     const fetchBlog = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/blogs/${slug}`);
+        const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${slug}`);
         const data = await response.json();
         if (data.success) {
           setBlogPost(data.data);
@@ -82,7 +82,7 @@ const BlogPost: React.FC = () => {
     try {
       setRelatedLoading(true);
       // Fetch blogs from the same category, excluding the current blog
-      const response = await fetch(`/api/blogs?category=${encodeURIComponent(category)}&limit=4&status=published`);
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs?category=${encodeURIComponent(category)}&limit=4&status=published`);
       const data = await response.json();
       if (data.success) {
         // Filter out the current blog and limit to 2 related blogs
@@ -95,7 +95,7 @@ const BlogPost: React.FC = () => {
       console.error('Error fetching related blogs:', err);
       // Fallback: fetch any recent blogs if category-based fetch fails
       try {
-        const fallbackResponse = await fetch('/api/blogs?limit=3&status=published');
+        const fallbackResponse = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs?limit=3&status=published`);
         const fallbackData = await fallbackResponse.json();
         if (fallbackData.success) {
           const filtered = fallbackData.data

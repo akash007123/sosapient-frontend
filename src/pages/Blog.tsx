@@ -45,7 +45,7 @@ const Blog: React.FC = () => {
   const fetchBlogs = async () => {
     try {
       setLoading(true);
-      let url = `/api/blogs?page=${currentPage}&limit=6`;
+      let url = `${import.meta.env.VITE_BASE_URL}/api/blogs?page=${currentPage}&limit=6`;
       if (selectedCategory && selectedCategory !== 'All') {
         url += `&category=${encodeURIComponent(selectedCategory)}`;
       }
@@ -86,7 +86,7 @@ const Blog: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/blogs/categories');
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/categories`);
       const data = await response.json();
       if (data.success && data.data.length < 3) {
         setCategories(defaultCategories);

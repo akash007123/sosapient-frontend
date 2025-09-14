@@ -79,7 +79,7 @@ const BlogAdmin: React.FC = () => {
   const fetchBlogs = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/blogs?limit=50');
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs?limit=50`);
       const data = await response.json();
       if (data.success) {
         setBlogs(data.data);
@@ -93,7 +93,7 @@ const BlogAdmin: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/blogs/stats');
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/stats`);
       const data = await response.json();
       if (data.success) {
         setStats(data.data);
@@ -191,7 +191,7 @@ const BlogAdmin: React.FC = () => {
 
     try {
       setDeleting(true);
-      const response = await fetch(`/api/blogs/${blogToDelete._id}`, {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogToDelete._id}`, {
         method: 'DELETE'
       });
 
