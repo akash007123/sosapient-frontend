@@ -9,8 +9,6 @@ import About from './pages/About';
 import Services from './pages/Services';
 import Blog from './pages/Blog';
 import BlogPost from './pages/Blogs/BlogPost';
-import BlogPost1 from './pages/Blogs/BlogPost1';
-import BlogPost2 from './pages/Blogs/BlogPost2';
 import BlogAdmin from './pages/BlogAdmin';
 import Careers from './pages/Careers';
 import Contact from './pages/Contact';
