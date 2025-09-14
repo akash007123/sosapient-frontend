@@ -33,9 +33,9 @@ const BlogSearch: React.FC<BlogSearchProps> = ({
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
             <motion.div
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              className="absolute left-3 top-3.5 transform -translate-y-1/2 text-gray-400"
               animate={{
-                x: [0, 2, 0],
+                x: [0, 10, 0],
               }}
               transition={{
                 duration: 2,

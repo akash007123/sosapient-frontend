@@ -135,10 +135,10 @@ const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
               />
               <span>{post.author}</span>
             </motion.div>
-            <div className="flex items-center space-x-1">
+            {/* <div className="flex items-center space-x-1">
               <Clock className="w-4 h-4" />
               <span>{post.readTime}</span>
-            </div>
+            </div> */}
           </div>
           <div className="flex items-center space-x-1">
             <Calendar className="w-4 h-4" />
