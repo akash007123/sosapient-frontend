@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.Our-Vision:hover{
+   box-shadow: 5px 10px 10px 0px #a78cf1;
+   transition: all 0.3s ease;
+   transform: scale(1.05);
+   cursor: pointer;
+}
