@@ -28,6 +28,11 @@ interface BlogPost {
   publishedAt?: string;
   createdAt?: string;
   sections: BlogSection[];
+  seo?: {
+    metaTitle?: string;
+    metaDescription?: string;
+    keywords?: string[];
+  };
 }
 
 const BlogAdmin: React.FC = () => {
@@ -58,7 +63,12 @@ const BlogAdmin: React.FC = () => {
     featured: false,
     sections: [
       { heading: '', content: '', image: '' }
-    ]
+    ],
+    seo: {
+      metaTitle: '',
+      metaDescription: '',
+      keywords: []
+    }
   };
 
   useEffect(() => {
@@ -100,19 +110,37 @@ const BlogAdmin: React.FC = () => {
       setLoading(true);
       const formData = new FormData();
       
-      // Only append fields that have values and are not internal MongoDB fields
+      console.log('=== FRONTEND SAVE DEBUG ===');
+      console.log('editingBlog.tags:', editingBlog.tags);
+      console.log('editingBlog.seo:', editingBlog.seo);
+      console.log('editingBlog.seo.keywords:', editingBlog.seo?.keywords);
+      console.log('Tags type:', typeof editingBlog.tags, 'Length:', editingBlog.tags?.length);
+      console.log('Keywords type:', typeof editingBlog.seo?.keywords, 'Length:', editingBlog.seo?.keywords?.length);
+      
+      // Always append tags and seo fields, even if empty
+      const tagsToSend = editingBlog.tags || [];
+      const seoToSend = editingBlog.seo || { metaTitle: '', metaDescription: '', keywords: [] };
+      
+      formData.append('tags', JSON.stringify(tagsToSend));
+      formData.append('seo', JSON.stringify(seoToSend));
+      
+      console.log('Force appending tags:', JSON.stringify(tagsToSend));
+      console.log('Force appending seo:', JSON.stringify(seoToSend));
+
+      // Only append other fields that have values and are not internal MongoDB fields
       Object.keys(editingBlog).forEach(key => {
         const value = editingBlog[key as keyof BlogPost];
         
-        // Skip internal MongoDB fields and undefined/null values
-        if (key.startsWith('_') || key === '__v' || value === undefined || value === null) {
+        // Skip internal MongoDB fields, undefined/null values, and tags/seo (already handled above)
+        if (key.startsWith('_') || key === '__v' || value === undefined || value === null || key === 'tags' || key === 'seo') {
           return;
         }
         
-        if (key === 'author' || key === 'tags' || key === 'sections' || key === 'seo') {
-          // Only stringify if the value is not already a string and is not empty
+        if (key === 'author' || key === 'sections') {
           if (typeof value === 'object' && value !== null) {
-            formData.append(key, JSON.stringify(value));
+            const stringifiedValue = JSON.stringify(value);
+            console.log(`Appending ${key}:`, stringifiedValue);
+            formData.append(key, stringifiedValue);
           } else if (typeof value === 'string' && value !== '') {
             formData.append(key, value);
           }
@@ -196,12 +224,27 @@ const BlogAdmin: React.FC = () => {
   };
 
   const handleEdit = (blog: BlogPost) => {
-    setEditingBlog({ ...blog });
+    setEditingBlog({ 
+      ...blog,
+      tags: Array.isArray(blog.tags) ? blog.tags : [],
+      seo: blog.seo || {
+        metaTitle: '',
+        metaDescription: '',
+        keywords: []
+      }
+    });
     setIsEditing(true);
   };
 
   const handleNew = () => {
-    setEditingBlog({ ...initialBlogState });
+    setEditingBlog({ 
+      ...initialBlogState,
+      seo: {
+        metaTitle: '',
+        metaDescription: '',
+        keywords: []
+      }
+    });
     setIsEditing(true);
   };
 
@@ -225,19 +268,23 @@ const BlogAdmin: React.FC = () => {
   };
 
   const addTag = (tag: string) => {
-    if (editingBlog && tag.trim() && !editingBlog.tags.includes(tag.trim())) {
-      setEditingBlog({
-        ...editingBlog,
-        tags: [...editingBlog.tags, tag.trim()]
-      });
+    if (editingBlog && tag.trim()) {
+      const currentTags = editingBlog.tags || [];
+      if (!currentTags.includes(tag.trim())) {
+        setEditingBlog({
+          ...editingBlog,
+          tags: [...currentTags, tag.trim()]
+        });
+      }
     }
   };
 
   const removeTag = (tagToRemove: string) => {
     if (editingBlog) {
+      const currentTags = editingBlog.tags || [];
       setEditingBlog({
         ...editingBlog,
-        tags: editingBlog.tags.filter(tag => tag !== tagToRemove)
+        tags: currentTags.filter(tag => tag !== tagToRemove)
       });
     }
   };
@@ -522,6 +569,111 @@ const BlogAdmin: React.FC = () => {
                     </span>
                   </label>
                 </div>
+
+                {/* SEO Section */}
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">SEO Settings</h4>
+                  
+                  {/* Meta Title */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Meta Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editingBlog.seo?.metaTitle || ''}
+                      onChange={(e) => setEditingBlog({ 
+                        ...editingBlog, 
+                        seo: { 
+                          ...editingBlog.seo, 
+                          metaTitle: e.target.value 
+                        } 
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      placeholder="SEO optimized title..."
+                      maxLength={60}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {editingBlog.seo?.metaTitle?.length || 0}/60 characters
+                    </p>
+                  </div>
+
+                  {/* Meta Description */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Meta Description
+                    </label>
+                    <textarea
+                      value={editingBlog.seo?.metaDescription || ''}
+                      onChange={(e) => setEditingBlog({ 
+                        ...editingBlog, 
+                        seo: { 
+                          ...editingBlog.seo, 
+                          metaDescription: e.target.value 
+                        } 
+                      })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      placeholder="SEO meta description..."
+                      maxLength={160}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {editingBlog.seo?.metaDescription?.length || 0}/160 characters
+                    </p>
+                  </div>
+
+                  {/* SEO Keywords */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      SEO Keywords
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(editingBlog.seo?.keywords || []).map(keyword => (
+                        <span
+                          key={keyword}
+                          className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                        >
+                          {keyword}
+                          <button
+                            onClick={() => {
+                              const newKeywords = (editingBlog.seo?.keywords || []).filter(k => k !== keyword);
+                              setEditingBlog({
+                                ...editingBlog,
+                                seo: {
+                                  ...editingBlog.seo,
+                                  keywords: newKeywords
+                                }
+                              });
+                            }}
+                            className="ml-1 text-blue-600 hover:text-blue-800"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Add SEO keyword and press Enter"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const keyword = e.currentTarget.value.trim();
+                          if (keyword && !(editingBlog.seo?.keywords || []).includes(keyword)) {
+                            setEditingBlog({
+                              ...editingBlog,
+                              seo: {
+                                ...editingBlog.seo,
+                                keywords: [...(editingBlog.seo?.keywords || []), keyword]
+                              }
+                            });
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -623,6 +775,9 @@ const BlogAdmin: React.FC = () => {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Tags
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Stats
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -667,6 +822,14 @@ const BlogAdmin: React.FC = () => {
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           {blog.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {blog.tags && Array.isArray(blog.tags) && blog.tags.length > 0 
+                            ? blog.tags.slice(0, 3).join(', ') + (blog.tags.length > 3 ? '...' : '')
+                            : 'No tags'
+                          }
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

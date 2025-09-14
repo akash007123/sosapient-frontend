@@ -38,9 +38,6 @@ function formatPrettyDate(dateValue: any, fallback: string = "Unknown date"): st
 
 
 const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
-  // Debug: Log the post data to see what tags look like
-  console.log('BlogCard post data:', { title: post.title, tags: post.tags, tagsType: typeof post.tags, tagsLength: post.tags?.length });
-  
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
