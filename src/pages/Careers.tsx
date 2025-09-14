@@ -305,13 +305,6 @@ const Careers: React.FC = () => {
         throw new Error('Please fill in all required fields');
       }
 
-      // Log the file details for debugging
-      console.log('File details:', {
-        name: applicationData.resume.name,
-        type: applicationData.resume.type,
-        size: applicationData.resume.size
-      });
-
       const formData = new FormData();
       
       // Append all form fields

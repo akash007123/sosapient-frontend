@@ -36,6 +36,9 @@ const BlogAdmin: React.FC = () => {
   const [editingBlog, setEditingBlog] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ totalBlogs: 0, totalViews: 0, categoryStats: [] });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [blogToDelete, setBlogToDelete] = useState<BlogPost | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const categories = ['Technology', 'Design', 'Mobile Development', 'Web Development', 'AI/ML', 'Cybersecurity', 'Business', 'Tutorial'];
 
@@ -97,16 +100,34 @@ const BlogAdmin: React.FC = () => {
       setLoading(true);
       const formData = new FormData();
       
+      // Only append fields that have values and are not internal MongoDB fields
       Object.keys(editingBlog).forEach(key => {
-        if (key === 'author' || key === 'tags' || key === 'sections') {
-          formData.append(key, JSON.stringify(editingBlog[key as keyof BlogPost]));
-        } else {
-          formData.append(key, editingBlog[key as keyof BlogPost] as string);
+        const value = editingBlog[key as keyof BlogPost];
+        
+        // Skip internal MongoDB fields and undefined/null values
+        if (key.startsWith('_') || key === '__v' || value === undefined || value === null) {
+          return;
+        }
+        
+        if (key === 'author' || key === 'tags' || key === 'sections' || key === 'seo') {
+          // Only stringify if the value is not already a string and is not empty
+          if (typeof value === 'object' && value !== null) {
+            formData.append(key, JSON.stringify(value));
+          } else if (typeof value === 'string' && value !== '') {
+            formData.append(key, value);
+          }
+        } else if (typeof value === 'boolean') {
+          formData.append(key, value.toString());
+        } else if (value !== '' && typeof value === 'string') {
+          formData.append(key, value);
         }
       });
 
       const url = editingBlog._id ? `/api/blogs/${editingBlog._id}` : '/api/blogs';
       const method = editingBlog._id ? 'PUT' : 'POST';
+      for (let [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
+      }
 
       const response = await fetch(url, {
         method,
@@ -120,31 +141,58 @@ const BlogAdmin: React.FC = () => {
         await fetchStats();
         setIsEditing(false);
         setEditingBlog(null);
+      } else {
+        console.error('Server error:', data);
+        alert(`Error: ${data.message || 'Failed to save blog post'}`);
       }
     } catch (error) {
       console.error('Error saving blog:', error);
+      alert('Network error occurred while saving the blog post');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this blog post?')) return;
+  const handleDeleteClick = (blog: BlogPost) => {
+    setBlogToDelete(blog);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!blogToDelete?._id) return;
 
     try {
-      const response = await fetch(`/api/blogs/${id}`, {
+      setDeleting(true);
+      const response = await fetch(`/api/blogs/${blogToDelete._id}`, {
         method: 'DELETE'
       });
 
       const data = await response.json();
       
       if (data.success) {
-        await fetchBlogs();
-        await fetchStats();
+        // Update state immediately without refetching
+        setBlogs(prevBlogs => prevBlogs.filter(blog => blog._id !== blogToDelete._id));
+        setStats(prevStats => ({
+          ...prevStats,
+          totalBlogs: prevStats.totalBlogs - 1
+        }));
+        setShowDeleteModal(false);
+        setBlogToDelete(null);
+      } else {
+        console.error('Server error:', data);
+        alert(`Error: ${data.message || 'Failed to delete blog post'}`);
       }
     } catch (error) {
       console.error('Error deleting blog:', error);
+      alert('Network error occurred while deleting the blog post');
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setBlogToDelete(null);
   };
 
   const handleEdit = (blog: BlogPost) => {
@@ -637,7 +685,7 @@ const BlogAdmin: React.FC = () => {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => blog._id && handleDelete(blog._id)}
+                            onClick={() => handleDeleteClick(blog)}
                             className="text-red-600 hover:text-red-900"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -652,6 +700,85 @@ const BlogAdmin: React.FC = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+          >
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Delete Blog Post
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {blogToDelete && (
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center">
+                  <img
+                    src={blogToDelete.image}
+                    alt={blogToDelete.title}
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
+                      {blogToDelete.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {blogToDelete.category} • {blogToDelete.status}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to delete this blog post? This will permanently remove the post and all associated data.
+            </p>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center space-x-2"
+              >
+                {deleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

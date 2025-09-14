@@ -26,12 +26,18 @@ function getValidDateString(dateValue: any, fallback: string = "") {
   if (isNaN(dateObj.getTime())) return fallback;
   return dateObj.toISOString();
 }
-function getValidLocaleDate(dateValue: any, fallback: string = "Unknown date") {
+function getValidLocaleDate(dateValue: any, fallback: string = "Unknown date"): string {
   if (!dateValue) return fallback;
   const dateObj = new Date(dateValue);
   if (isNaN(dateObj.getTime())) return fallback;
-  return dateObj.toLocaleDateString();
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(dateObj);
 }
+
 
 const BlogPost: React.FC = () => {
   const { slug } = useParams();
@@ -41,6 +47,8 @@ const BlogPost: React.FC = () => {
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likes, setLikes] = useState(0);
+  const [relatedBlogs, setRelatedBlogs] = useState<any[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -49,15 +57,15 @@ const BlogPost: React.FC = () => {
       return;
     }
     const fetchBlog = async () => {
-      console.log("Fetching blog post:", slug);
       setLoading(true);
       try {
         const response = await fetch(`/api/blogs/${slug}`);
         const data = await response.json();
-        console.log("Fetching blog post:", data.data);
         if (data.success) {
           setBlogPost(data.data);
           setError(null);
+          // Fetch related blogs after getting the main blog
+          fetchRelatedBlogs(data.data.category, data.data._id);
         } else {
           setError(data.message || "Blog post not found.");
         }
@@ -69,6 +77,39 @@ const BlogPost: React.FC = () => {
     };
     fetchBlog();
   }, [slug]);
+
+  const fetchRelatedBlogs = async (category: string, currentBlogId: string) => {
+    try {
+      setRelatedLoading(true);
+      // Fetch blogs from the same category, excluding the current blog
+      const response = await fetch(`/api/blogs?category=${encodeURIComponent(category)}&limit=4&status=published`);
+      const data = await response.json();
+      if (data.success) {
+        // Filter out the current blog and limit to 2 related blogs
+        const filtered = data.data
+          .filter((blog: any) => blog._id !== currentBlogId)
+          .slice(0, 2);
+        setRelatedBlogs(filtered);
+      }
+    } catch (err) {
+      console.error('Error fetching related blogs:', err);
+      // Fallback: fetch any recent blogs if category-based fetch fails
+      try {
+        const fallbackResponse = await fetch('/api/blogs?limit=3&status=published');
+        const fallbackData = await fallbackResponse.json();
+        if (fallbackData.success) {
+          const filtered = fallbackData.data
+            .filter((blog: any) => blog._id !== currentBlogId)
+            .slice(0, 2);
+          setRelatedBlogs(filtered);
+        }
+      } catch (fallbackErr) {
+        console.error('Error fetching fallback blogs:', fallbackErr);
+      }
+    } finally {
+      setRelatedLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -85,24 +126,6 @@ const BlogPost: React.FC = () => {
     );
   }
 
-  const relatedPosts = [
-    {
-      id: 2,
-      title: "Building Scalable Mobile Apps: Best Practices",
-      image:
-        "https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&dpr=1",
-      date: "2024-01-10",
-      readTime: "7 min read",
-    },
-    {
-      id: 3,
-      title: "UI/UX Design Principles That Drive Engagement",
-      image:
-        "https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400&h=250&dpr=1",
-      date: "2024-01-05",
-      readTime: "6 min read",
-    },
-  ];
 
   const handleShare = async (platform?: string) => {
     const url = window.location.href;
@@ -196,7 +219,7 @@ const BlogPost: React.FC = () => {
             author: {
         "@type": "Person",
               name: blogPost.author?.name || "Unknown Author",
-              url: "https://yourwebsite.com/about",
+              url: "https://sosapient.in/about",
             },
             datePublished: getValidDateString(blogPost.date),
             dateModified: getValidDateString(blogPost.date),
@@ -205,7 +228,7 @@ const BlogPost: React.FC = () => {
               name: "Your Blog Name",
               logo: {
           "@type": "ImageObject",
-                url: "https://yourwebsite.com/logo.png",
+                url: "https://ik.imagekit.io/sentyaztie/Dlogo.png?updatedAt=1749928182723",
               },
       },
             mainEntityOfPage: {
@@ -318,7 +341,7 @@ const BlogPost: React.FC = () => {
           className="flex items-center space-x-4 mb-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-xl"
         >
           <img
-            src={blogPost.author?.image || blogPost.authorImage || "https://via.placeholder.com/150"}
+            src={blogPost.author?.image || blogPost.authorImage || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"}
             alt={blogPost.author?.name || "Author"}
             className="w-12 h-12 rounded-full object-cover ring-2 ring-primary-500"
           />
@@ -329,7 +352,7 @@ const BlogPost: React.FC = () => {
             <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
-                {getValidLocaleDate(blogPost.date)}
+                {getValidLocaleDate(blogPost.publishedAt || blogPost.createdAt)}
               </span>
               <span className="flex items-center">
                 <Clock className="w-4 h-4 mr-1" />
@@ -445,51 +468,68 @@ const BlogPost: React.FC = () => {
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Related Article Cards */}
-            <motion.div
-              whileHover={{ y: -5 }}
-              className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-            >
-              <img
-                src="https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
-                alt="Related article"
-                className="w-full h-48 object-cover"
-              />
-              <div className="p-6">
-                <span className="text-sm text-primary-500 dark:text-primary-400">
-                  Web Development
-                </span>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
-                  The Rise of AI in Web Development
-                </h4>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    How artificial intelligence is transforming the way we build
-                    websites...
+            {relatedLoading ? (
+              // Loading skeleton for related blogs
+              Array.from({ length: 2 }).map((_, index) => (
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm animate-pulse">
+                  <div className="w-full h-48 bg-gray-300 dark:bg-gray-600"></div>
+                  <div className="p-6">
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-20 mb-2"></div>
+                    <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-full"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-2/3 mt-1"></div>
+                  </div>
+                </div>
+              ))
+            ) : relatedBlogs.length > 0 ? (
+              // Dynamic related blog cards
+              relatedBlogs.map((blog) => (
+                <motion.div
+                  key={blog._id}
+                  whileHover={{ y: -5 }}
+                  className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <Link to={`/blog/${blog.slug}`}>
+                    <img
+                      src={blog.image}
+                      alt={blog.title}
+                      className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="p-6">
+                      <span className="text-sm text-primary-500 dark:text-primary-400">
+                        {blog.category}
+                      </span>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mt-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors line-clamp-2">
+                        {blog.title}
+                      </h4>
+                      <p className="text-gray-600 dark:text-gray-400 mt-2 line-clamp-3">
+                        {blog.excerpt}
+                      </p>
+                      <div className="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center">
+                          <Clock className="w-4 h-4 mr-1" />
+                          {blog.readTime}
+                        </span>
+                        <span className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {getValidLocaleDate(blog.publishedAt || blog.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))
+            ) : (
+              // No related blogs found
+              <div className="col-span-2 text-center py-8">
+                <p className="text-gray-500 dark:text-gray-400">
+                  No related articles found. 
+                  <Link to="/blog" className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-1">
+                    Explore all articles →
+                  </Link>
                 </p>
               </div>
-            </motion.div>
-            <motion.div
-              whileHover={{ y: -5 }}
-              className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-            >
-              <img
-                src="https://images.pexels.com/photos/1181467/pexels-photo-1181467.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
-                alt="Related article"
-                className="w-full h-48 object-cover"
-              />
-              <div className="p-6">
-                <span className="text-sm text-primary-500 dark:text-primary-400">
-                  Technology
-                </span>
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mt-2">
-                  WebAssembly: The Future of Web Performance
-                </h4>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Exploring how WebAssembly is revolutionizing web application
-                    performance...
-                </p>
-              </div>
-            </motion.div>
+            )}
           </div>
         </motion.div>
       </article>

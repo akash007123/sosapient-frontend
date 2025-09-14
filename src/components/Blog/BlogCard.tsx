@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Calendar, Clock, User, ArrowRight } from 'lucide-react';
 
 interface BlogPost {
-  id: number;
+  id: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -22,8 +22,25 @@ interface BlogCardProps {
   index: number;
 }
 
+function formatPrettyDate(dateValue: any, fallback: string = "Unknown date"): string {
+  if (!dateValue) return fallback;
+  const dateObj = new Date(dateValue);
+  if (isNaN(dateObj.getTime())) return fallback;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  })
+    .format(dateObj)
+    .replace(",", "");
+}
+
+
 const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
-  console.log('BlogCard post:', post);
+  // Debug: Log the post data to see what tags look like
+  console.log('BlogCard post data:', { title: post.title, tags: post.tags, tagsType: typeof post.tags, tagsLength: post.tags?.length });
+  
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
@@ -90,20 +107,22 @@ const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
         </p>
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {post.tags.slice(0, 3).map((tag, tagIndex) => (
-            <motion.span
-              key={tag}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: tagIndex * 0.1 }}
-              whileHover={{ scale: 1.1, y: -2 }}
-              className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-full cursor-pointer"
-            >
-              {tag}
-            </motion.span>
-          ))}
-        </div>
+        {post.tags && Array.isArray(post.tags) && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {post.tags.slice(0, 3).map((tag, tagIndex) => (
+              <motion.span
+                key={`${tag}-${tagIndex}`}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: tagIndex * 0.1 }}
+                whileHover={{ scale: 1.1, y: -2 }}
+                className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-full cursor-pointer"
+              >
+                {tag}
+              </motion.span>
+            ))}
+          </div>
+        )}
 
         {/* Meta */}
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -126,7 +145,7 @@ const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
           </div>
           <div className="flex items-center space-x-1">
             <Calendar className="w-4 h-4" />
-            <span>{new Date(post.date).toLocaleDateString()}</span>
+            <span>{formatPrettyDate(post.date)}</span>
           </div>
         </div>
 

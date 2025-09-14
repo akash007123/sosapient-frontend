@@ -24,21 +24,37 @@ const Blog: React.FC = () => {
   const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    fetchBlogs();
     fetchCategories();
   }, []);
 
+  // Reset to first page when search or category changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory]);
+
+  // Fetch blogs whenever page, search, or category changes
+  useEffect(() => {
+    fetchBlogs();
+    // eslint-disable-next-line
+  }, [currentPage, searchTerm, selectedCategory]);
+
   const fetchBlogs = async () => {
-    console.log('Fetching blogs');
     try {
       setLoading(true);
-      const response = await fetch('/api/blogs?limit=50');
+      let url = `/api/blogs?page=${currentPage}&limit=6`;
+      if (selectedCategory && selectedCategory !== 'All') {
+        url += `&category=${encodeURIComponent(selectedCategory)}`;
+      }
+      if (searchTerm) {
+        url += `&search=${encodeURIComponent(searchTerm)}`;
+      }
+      const response = await fetch(url);
       const data = await response.json();
-      
       if (data.success) {
-        // Transform the data to match the expected format
         const transformedPosts = data.data.map((post: any) => ({
           id: post._id,
           slug: post.slug,
@@ -53,99 +69,34 @@ const Blog: React.FC = () => {
           tags: post.tags
         }));
         setBlogPosts(transformedPosts);
-        // Warn if any post is missing a slug
-        const missingSlugs = transformedPosts.filter((post: any) => !post.slug);
-        if (missingSlugs.length > 0) {
-          console.warn('Some blog posts are missing a slug:', missingSlugs);
-        }
+        setTotalPages(data.pagination?.totalPages || 1);
       } else {
-        setError(data.error || 'Failed to fetch blogs.'); // Set error if API fails
-        setBlogPosts([
-          {
-            id: '1',
-            slug: 'the-future-of-web-development-trends-to-watch-in-2025',
-            title: 'The Future of Web Development: Trends to Watch in 2025',
-            excerpt: 'Explore the latest trends shaping the future of web development, from AI integration to new frameworks...',
-            image: 'https://images.pexels.com/photos/270408/pexels-photo-270408.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=1',
-            author: 'Akash Raikwar',
-            authorImage: './blog/akash.jpg',
-            date: '2025-06-13',
-            readTime: '5 min read',
-            category: 'Technology',
-            tags: ['React', 'JavaScript', 'Web Development', 'Trends']
-          },
-          {
-            id: '2',
-            slug: 'building-scalable-mobile-apps-best-practices-and-strategies',
-            title: 'Building Scalable Mobile Apps: Best Practices and Strategies',
-            excerpt: 'Learn the essential strategies for building mobile applications that can scale with your growing user base...',
-            image: 'https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=1',
-            author: 'Ritu Chouhan',
-            authorImage: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
-            date: '2025-01-10',
-            readTime: '7 min read',
-            category: 'Mobile Development',
-            tags: ['React Native', 'Flutter', 'Mobile', 'Scalability']
-          }
-        ]);
+        setError(data.error || 'Failed to fetch blogs.');
+        setBlogPosts([]);
       }
     } catch (error) {
-      console.error('Error fetching blogs:', error);
-      setError('Error fetching blogs. Please try again later.'); // Set error
-      setBlogPosts([
-        {
-          id: '1',
-          slug: 'the-future-of-web-development-trends-to-watch-in-2025',
-          title: 'The Future of Web Development: Trends to Watch in 2025',
-          excerpt: 'Explore the latest trends shaping the future of web development, from AI integration to new frameworks...',
-          image: 'https://images.pexels.com/photos/270408/pexels-photo-270408.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=1',
-          author: 'Akash Raikwar',
-          authorImage: './blog/akash.jpg',
-          date: '2025-06-13',
-          readTime: '5 min read',
-          category: 'Technology',
-          tags: ['React', 'JavaScript', 'Web Development', 'Trends']
-        },
-        {
-          id: '2',
-          slug: 'building-scalable-mobile-apps-best-practices-and-strategies',
-          title: 'Building Scalable Mobile Apps: Best Practices and Strategies',
-          excerpt: 'Learn the essential strategies for building mobile applications that can scale with your growing user base...',
-          image: 'https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg?auto=compress&cs=tinysrgb&w=800&h=400&dpr=1',
-          author: 'Ritu Chouhan',
-          authorImage: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
-          date: '2025-01-10',
-          readTime: '7 min read',
-          category: 'Mobile Development',
-          tags: ['React Native', 'Flutter', 'Mobile', 'Scalability']
-        }
-      ]);
+      setError('Error fetching blogs. Please try again later.');
+      setBlogPosts([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const defaultCategories = ['All', 'Technology', 'Design', 'Mobile Development', 'Web Development', 'AI/ML', 'Cybersecurity', 'Business', 'Tutorial'];
+
   const fetchCategories = async () => {
     try {
       const response = await fetch('/api/blogs/categories');
       const data = await response.json();
-      
-      if (data.success) {
+      if (data.success && data.data.length < 3) {
+        setCategories(defaultCategories);
+      } else if (data.success) {
         setCategories(['All', ...data.data]);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
-      // Fallback categories
-      setCategories(['All', 'Technology', 'Design', 'Mobile Development', 'Web Development', 'AI/ML', 'Cybersecurity',]);
+      setCategories(defaultCategories);
     }
   };
-
-  const filteredPosts = blogPosts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         post.excerpt.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || post.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   if (loading) {
     return (
@@ -182,7 +133,6 @@ const Blog: React.FC = () => {
   return (
     <div className="bg-white dark:bg-gray-900">
       <BlogHero />
-      
       <BlogSearch
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
@@ -190,10 +140,35 @@ const Blog: React.FC = () => {
         setSelectedCategory={setSelectedCategory}
         categories={categories}
       />
-
-      <BlogGrid
-        posts={filteredPosts}
-      />
+      <BlogGrid posts={blogPosts} />
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center my-8 space-x-2">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+          >
+            Prev
+          </button>
+          {[...Array(totalPages)].map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentPage(idx + 1)}
+              className={`px-4 py-2 rounded ${currentPage === idx + 1 ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200'}`}
+            >
+              {idx + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
