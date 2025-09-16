@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
@@ -17,6 +17,7 @@ import {
   ThumbsUp,
   Eye,
   ChevronRight,
+  Mail,
 } from "lucide-react";
 
 // Simple sanitizer to reduce XSS risk without external deps
@@ -75,6 +76,8 @@ const BlogPost: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likes, setLikes] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
@@ -125,6 +128,25 @@ const BlogPost: React.FC = () => {
     };
     fetchBlog();
   }, [slug]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!shareOpen) return;
+      const target = e.target as Node;
+      if (shareMenuRef.current && !shareMenuRef.current.contains(target)) {
+        setShareOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShareOpen(false);
+    }
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [shareOpen]);
 
   const fetchRelatedBlogs = async (category: string, currentBlogId: string) => {
     try {
@@ -393,10 +415,11 @@ const BlogPost: React.FC = () => {
                 <span className="ml-1 text-sm">{likes}</span>
                 </div>
               </motion.button>
+              <div className="relative" ref={shareMenuRef}>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => handleShare()}
+                onClick={() => setShareOpen((v) => !v)}
                 className={`p-2 rounded-lg transition-colors ${
                   shareSuccess
                       ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400"
@@ -409,6 +432,71 @@ const BlogPost: React.FC = () => {
                     <Share2 className="w-5 h-5" />
                   )}
               </motion.button>
+
+              {shareOpen && (
+                <>
+                <div className="fixed inset-0 bg-black/10 dark:bg-black/20 backdrop-blur-[1px] z-40"></div>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: -2 }}
+                  className="absolute right-0 mt-2 w-64 bg-white/95 dark:bg-gray-900/95 backdrop-blur border border-gray-200/80 dark:border-gray-700/60 rounded-xl shadow-2xl p-3 z-50"
+                >
+                  <div className="absolute -top-2 right-4 w-3 h-3 bg-white dark:bg-gray-900 rotate-45 border-t border-l border-gray-200 dark:border-gray-700"></div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button onClick={() => { handleShare("facebook"); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Facebook className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Facebook</span>
+                    </button>
+                    <button onClick={() => { handleShare("twitter"); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#1DA1F2] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Twitter className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Twitter</span>
+                    </button>
+                    <button onClick={() => { handleShare("linkedin"); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#0A66C2] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Linkedin className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">LinkedIn</span>
+                    </button>
+                    <button onClick={() => { const msg = encodeURIComponent(`${document.title} - ${window.location.href}`); window.open(`https://wa.me/?text=${msg}`, '_blank', 'width=600,height=400'); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Share2 className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">WhatsApp</span>
+                    </button>
+                    <button onClick={() => { const tg = encodeURIComponent(`${document.title} - ${window.location.href}`); window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${tg}`, '_blank', 'width=600,height=400'); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#24A1DE] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Share2 className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Telegram</span>
+                    </button>
+                    <button onClick={() => { const reddit = `https://www.reddit.com/submit?url=${encodeURIComponent(window.location.href)}&title=${encodeURIComponent(document.title)}`; window.open(reddit, '_blank', 'width=900,height=700'); setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-[#FF4500] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Share2 className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Reddit</span>
+                    </button>
+                    <button onClick={() => { const subject = encodeURIComponent(document.title); const body = encodeURIComponent(`${document.title}\n\n${window.location.href}`); window.location.href = `mailto:?subject=${subject}&body=${body}`; setShareOpen(false); }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-gray-600 text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Mail className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Email</span>
+                    </button>
+                    <button onClick={async () => { try { await navigator.clipboard.writeText(window.location.href); setShareSuccess(true); setShareOpen(false); setTimeout(() => setShareSuccess(false), 2000);} catch {} }} className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                      <span className="w-10 h-10 rounded-full bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
+                        <Share2 className="w-5 h-5" />
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">Copy link</span>
+                    </button>
+                  </div>
+                </motion.div>
+                </>
+              )}
+              </div>
             </div>
           </div>
         </div>
