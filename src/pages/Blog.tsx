@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BlogHero from '../components/Blog/BlogHero';
 import BlogSearch from '../components/Blog/BlogSearch';
 import BlogGrid from '../components/Blog/BlogGrid';
+import BlogNewsletter from '../components/Blog/BlogNewsletter';
 
 interface BlogPost {
   id: string;
@@ -55,14 +56,15 @@ const Blog: React.FC = () => {
       const response = await fetch(url);
       const data = await response.json();
       if (data.success) {
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
         const transformedPosts = data.data.map((post: any) => ({
           id: post._id,
           slug: post.slug,
           title: post.title,
           excerpt: post.excerpt,
-          image: post.image,
+          image: normalizeUrl(post.image),
           author: post.author.name,
-          authorImage: post.author.image,
+          authorImage: normalizeUrl(post.author.image),
           date: post.publishedAt || post.createdAt,
           readTime: post.readTime,
           category: post.category,
@@ -169,6 +171,7 @@ const Blog: React.FC = () => {
           </button>
         </div>
       )}
+      <BlogNewsletter />
     </div>
   );
 };

@@ -59,7 +59,7 @@ const BlogAdmin: React.FC = () => {
     },
     category: 'Technology',
     tags: [],
-    status: 'draft',
+    status: 'published',
     featured: false,
     sections: [
       { heading: '', content: '', image: '' }
@@ -123,6 +123,9 @@ const BlogAdmin: React.FC = () => {
       
       formData.append('tags', JSON.stringify(tagsToSend));
       formData.append('seo', JSON.stringify(seoToSend));
+      // CSV fallbacks to improve robustness
+      formData.append('tagsCsv', (tagsToSend || []).join(','));
+      formData.append('seoKeywordsCsv', (seoToSend.keywords || []).join(','));
       
       console.log('Force appending tags:', JSON.stringify(tagsToSend));
       console.log('Force appending seo:', JSON.stringify(seoToSend));
@@ -151,7 +154,7 @@ const BlogAdmin: React.FC = () => {
         }
       });
 
-      const url = editingBlog._id ? `/api/blogs/${editingBlog._id}` : '/api/blogs';
+      const url = editingBlog._id ? `${import.meta.env.VITE_BASE_URL}/api/blogs/${editingBlog._id}` : `${import.meta.env.VITE_BASE_URL}/api/blogs`;
       const method = editingBlog._id ? 'PUT' : 'POST';
       for (let [key, value] of formData.entries()) {
         console.log(`${key}:`, value);
@@ -581,10 +584,14 @@ const BlogAdmin: React.FC = () => {
                     type="text"
                     placeholder="Add tag and press Enter"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        addTag(e.currentTarget.value);
-                        e.currentTarget.value = '';
+                        e.preventDefault();
+                        const value = (e.currentTarget as HTMLInputElement).value.trim();
+                        if (value) {
+                          addTag(value);
+                          (e.currentTarget as HTMLInputElement).value = '';
+                        }
                       }
                     }}
                   />
@@ -707,9 +714,11 @@ const BlogAdmin: React.FC = () => {
                       type="text"
                       placeholder="Add SEO keyword and press Enter"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      onKeyPress={(e) => {
+                      onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          const keyword = e.currentTarget.value.trim();
+                          e.preventDefault();
+                          const input = e.currentTarget as HTMLInputElement;
+                          const keyword = input.value.trim();
                           if (keyword && !(editingBlog.seo?.keywords || []).includes(keyword)) {
                             setEditingBlog({
                               ...editingBlog,
@@ -718,7 +727,7 @@ const BlogAdmin: React.FC = () => {
                                 keywords: [...(editingBlog.seo?.keywords || []), keyword]
                               }
                             });
-                            e.currentTarget.value = '';
+                            input.value = '';
                           }
                         }
                       }}

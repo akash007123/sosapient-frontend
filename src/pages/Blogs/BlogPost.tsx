@@ -19,6 +19,36 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+// Simple sanitizer to reduce XSS risk without external deps
+function sanitizeHtml(unsafeHtml: string): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(unsafeHtml || '', 'text/html');
+
+    // Remove script and style tags
+    doc.querySelectorAll('script, style, iframe, object, embed').forEach(el => el.remove());
+
+    // Remove event handler attributes and javascript: URLs
+    doc.querySelectorAll('*').forEach((el: Element) => {
+      // Remove on* attributes
+      [...(el as HTMLElement).attributes].forEach(attr => {
+        const name = attr.name.toLowerCase();
+        const value = attr.value || '';
+        if (name.startsWith('on')) {
+          (el as HTMLElement).removeAttribute(attr.name);
+        }
+        if ((name === 'href' || name === 'src') && value.trim().toLowerCase().startsWith('javascript:')) {
+          (el as HTMLElement).removeAttribute(attr.name);
+        }
+      });
+    });
+
+    return doc.body.innerHTML;
+  } catch {
+    return '';
+  }
+}
+
 // Helper function to safely parse date
 function getValidDateString(dateValue: any, fallback: string = "") {
   if (!dateValue) return fallback;
@@ -47,6 +77,7 @@ const BlogPost: React.FC = () => {
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likes, setLikes] = useState(0);
+  const [isLiked, setIsLiked] = useState(false);
   const [relatedBlogs, setRelatedBlogs] = useState<any[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
 
@@ -62,7 +93,24 @@ const BlogPost: React.FC = () => {
         const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${slug}`);
         const data = await response.json();
         if (data.success) {
-          setBlogPost(data.data);
+          const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
+          const normalized = {
+            ...data.data,
+            image: normalizeUrl(data.data.image),
+            author: {
+              ...data.data.author,
+              image: normalizeUrl(data.data.author?.image)
+            },
+            sections: Array.isArray(data.data.sections)
+              ? data.data.sections.map((s: any) => ({
+                  ...s,
+                  image: s?.image ? normalizeUrl(s.image) : s?.image
+                }))
+              : data.data.sections
+          };
+          setBlogPost(normalized);
+          setLikes(typeof data.data?.likes === 'number' ? data.data.likes : 0);
+          setIsLiked(Boolean(localStorage.getItem(`liked:${data.data._id}`)));
           setError(null);
           // Fetch related blogs after getting the main blog
           fetchRelatedBlogs(data.data.category, data.data._id);
@@ -81,6 +129,7 @@ const BlogPost: React.FC = () => {
   const fetchRelatedBlogs = async (category: string, currentBlogId: string) => {
     try {
       setRelatedLoading(true);
+      const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
       // Fetch blogs from the same category, excluding the current blog
       const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs?category=${encodeURIComponent(category)}&limit=4&status=published`);
       const data = await response.json();
@@ -88,6 +137,10 @@ const BlogPost: React.FC = () => {
         // Filter out the current blog and limit to 2 related blogs
         const filtered = data.data
           .filter((blog: any) => blog._id !== currentBlogId)
+          .map((b: any) => ({
+            ...b,
+            image: normalizeUrl(b.image)
+          }))
           .slice(0, 2);
         setRelatedBlogs(filtered);
       }
@@ -95,11 +148,16 @@ const BlogPost: React.FC = () => {
       console.error('Error fetching related blogs:', err);
       // Fallback: fetch any recent blogs if category-based fetch fails
       try {
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
         const fallbackResponse = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs?limit=3&status=published`);
         const fallbackData = await fallbackResponse.json();
         if (fallbackData.success) {
           const filtered = fallbackData.data
             .filter((blog: any) => blog._id !== currentBlogId)
+            .map((b: any) => ({
+              ...b,
+              image: normalizeUrl(b.image)
+            }))
             .slice(0, 2);
           setRelatedBlogs(filtered);
         }
@@ -196,7 +254,7 @@ const BlogPost: React.FC = () => {
   <meta property="og:site_name" content="Your Blog Name" />
         <meta
           property="article:published_time"
-          content={getValidDateString(blogPost.date)}
+          content={getValidDateString(blogPost.publishedAt || blogPost.createdAt)}
         />
   <meta property="article:author" content={blogPost.author?.name || "Unknown Author"} />
   <meta property="article:section" content={blogPost.category} />
@@ -314,6 +372,30 @@ const BlogPost: React.FC = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                onClick={async () => {
+                  if (isLiked) return;
+                  try {
+                    const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/like`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                      setLikes(data.data?.likes ?? (likes + 1));
+                      setIsLiked(true);
+                      localStorage.setItem(`liked:${blogPost._id}`, '1');
+                    }
+                  } catch (e) {
+                    // noop
+                  }
+                }}
+                className={`p-2 rounded-lg ${isLiked ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+              >
+                <div className="flex">
+                <ThumbsUp className={`w-5 h-5 ${isLiked ? 'text-red-600' : ''}`} />
+                <span className="ml-1 text-sm">{likes}</span>
+                </div>
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => handleShare()}
                 className={`p-2 rounded-lg transition-colors ${
                   shareSuccess
@@ -368,7 +450,7 @@ const BlogPost: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="prose prose-lg dark:prose-invert max-w-none"
-          dangerouslySetInnerHTML={{ __html: blogPost.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(blogPost.content) }}
         />
 
         {/* Blog Sections */}
@@ -383,7 +465,7 @@ const BlogPost: React.FC = () => {
                   <img src={section.image} alt={section.heading || "Section image"} className="w-full max-h-96 object-cover rounded mb-4" />
                 )}
                 {section.content && (
-                  <div className="prose dark:prose-invert" dangerouslySetInnerHTML={{ __html: section.content }} />
+                  <div className="prose dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content) }} />
                 )}
               </div>
             ))}

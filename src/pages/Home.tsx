@@ -8,7 +8,7 @@ import BlogPreview from '../components/Home/BlogPreview';
 import CTA from '../components/Home/CTA';
 import FeaturesSection from '../components/Home/FeaturesSection';
 import ProcessSection from '../components/Home/ProcessSection';
-import FaqSection from '../components/Home/FaqSection ';
+import FaqSection from '../components/Home/FaqSection';
 // import GoogleReviews from '../components/Home/GoogleReviews';
 
 const Home: React.FC = () => {

@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/aos": "^3.0.7",
     "aos": "^2.3.4",
+    "ckeditor5": "^46.1.1",
     "framer-motion": "^10.16.16",
     "helmet": "^8.1.0",
     "jspdf": "^3.0.1",

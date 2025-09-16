@@ -5,13 +5,32 @@ import { ArrowRight, Mail, CheckCircle } from 'lucide-react';
 const BlogNewsletter: React.FC = () => {
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
+    if (!email) return;
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Subscription failed');
+      }
       setIsSubscribed(true);
       setEmail('');
       setTimeout(() => setIsSubscribed(false), 3000);
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -102,44 +121,52 @@ const BlogNewsletter: React.FC = () => {
               <span className="text-lg font-medium">Thank you for subscribing!</span>
             </motion.div>
           ) : (
-            <motion.form
-              onSubmit={handleSubmit}
-              className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-              viewport={{ once: true }}
-            >
-              <motion.input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="flex-1 px-4 py-3 rounded-lg border-0 focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-300"
-                whileFocus={{ 
-                  scale: 1.02,
-                  boxShadow: "0 0 0 3px rgba(255, 255, 255, 0.2)"
-                }}
-              />
-              <motion.button
-                type="submit"
-                whileHover={{ 
-                  scale: 1.05,
-                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)"
-                }}
-                whileTap={{ scale: 0.95 }}
-                className="px-6 py-3 bg-white text-primary-600 rounded-lg font-semibold hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2"
+            <>
+              {error && (
+                <div className="text-red-100 bg-red-500/20 border border-red-300/30 rounded-md px-3 py-2 mb-4 max-w-md mx-auto">
+                  {error}
+                </div>
+              )}
+              <motion.form
+                onSubmit={handleSubmit}
+                className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                viewport={{ once: true }}
               >
-                <span>Subscribe</span>
-                <motion.div
-                  whileHover={{ x: 5 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                <motion.input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="flex-1 px-4 py-3 rounded-lg border-0 focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-300"
+                  whileFocus={{ 
+                    scale: 1.02,
+                    boxShadow: "0 0 0 3px rgba(255, 255, 255, 0.2)"
+                  }}
+                />
+                <motion.button
+                  type="submit"
+                  disabled={submitting}
+                  whileHover={{ 
+                    scale: 1.05,
+                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)"
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-white text-primary-600 rounded-lg font-semibold hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-60"
                 >
-                  <ArrowRight className="w-4 h-4" />
-                </motion.div>
-              </motion.button>
-            </motion.form>
+                  <span>{submitting ? 'Subscribing...' : 'Subscribe'}</span>
+                  <motion.div
+                    whileHover={{ x: 5 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.div>
+                </motion.button>
+              </motion.form>
+            </>
           )}
         </motion.div>
       </div>
