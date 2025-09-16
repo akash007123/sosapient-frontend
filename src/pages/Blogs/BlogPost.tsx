@@ -408,10 +408,10 @@ const BlogPost: React.FC = () => {
                     // noop
                   }
                 }}
-                className={`p-2 rounded-lg ${isLiked ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                className={`p-2 rounded-lg ${isLiked ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               >
                 <div className="flex">
-                <ThumbsUp className={`w-5 h-5 ${isLiked ? 'text-red-600' : ''}`} />
+                <ThumbsUp className={`w-5 h-5 ${isLiked ? 'text-blue-600' : ''}`} />
                 <span className="ml-1 text-sm">{likes}</span>
                 </div>
               </motion.button>
