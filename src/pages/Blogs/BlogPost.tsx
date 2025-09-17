@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
 import { 
   ArrowLeft, 
   Calendar, 
   Clock, 
-  User, 
   Share2,
   Facebook,
   Twitter,
@@ -18,6 +17,8 @@ import {
   Eye,
   ChevronRight,
   Mail,
+  MessageSquare,
+  X,
 } from "lucide-react";
 
 // Simple sanitizer to reduce XSS risk without external deps
@@ -83,6 +84,14 @@ const BlogPost: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [relatedBlogs, setRelatedBlogs] = useState<any[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
+  const [comments, setComments] = useState<Array<{name: string; email: string; comment: string; createdAt: string}>>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [cName, setCName] = useState("");
+  const [cEmail, setCEmail] = useState("");
+  const [cText, setCText] = useState("");
+  const [cSubmitting, setCSubmitting] = useState(false);
+  const [cError, setCError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) {
@@ -117,6 +126,8 @@ const BlogPost: React.FC = () => {
           setError(null);
           // Fetch related blogs after getting the main blog
           fetchRelatedBlogs(data.data.category, data.data._id);
+          // Fetch comments for this blog
+          fetchComments(slug!);
         } else {
           setError(data.message || "Blog post not found.");
         }
@@ -188,6 +199,58 @@ const BlogPost: React.FC = () => {
       }
     } finally {
       setRelatedLoading(false);
+    }
+  };
+
+  // Fetch comments for current blog by slug
+  const fetchComments = async (postSlug: string) => {
+    try {
+      setCommentsLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${postSlug}/comments`);
+      const json = await res.json();
+      if (json.success) {
+        setComments(json.data || []);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  // Submit a new comment
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blogPost?._id) return;
+    setCError(null);
+    const emailOk = /.+@.+\..+/.test(cEmail.trim());
+    if (!cName.trim() || !emailOk || !cText.trim()) {
+      setCError('Please provide valid name, email and comment.');
+      return;
+    }
+    try {
+      setCSubmitting(true);
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cName.trim(), email: cEmail.trim(), comment: cText.trim() })
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Optimistically prepend
+        const createdAt = json.data?.createdAt || new Date().toISOString();
+        setComments(prev => [{ name: json.data.name, email: json.data.email, comment: json.data.comment, createdAt }, ...prev]);
+        setCommentModalOpen(false);
+        setCName("");
+        setCEmail("");
+        setCText("");
+      } else {
+        setCError(json.message || 'Failed to add comment');
+      }
+    } catch (err) {
+      setCError('Network error while adding comment');
+    } finally {
+      setCSubmitting(false);
     }
   };
 
@@ -617,6 +680,84 @@ const BlogPost: React.FC = () => {
             </motion.button>
           </div>
         </motion.div>
+
+        {/* Comments Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Comments
+            </h3>
+            <button
+              onClick={() => setCommentModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Leave a comment
+            </button>
+          </div>
+
+          {commentsLoading ? (
+            <div className="text-gray-500 dark:text-gray-400">Loading comments...</div>
+          ) : comments.length === 0 ? (
+            <div className="text-gray-500 dark:text-gray-400">Be the first to comment.</div>
+          ) : (
+            <ul className="space-y-4">
+              {comments.map((c, idx) => (
+                <li key={idx} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-900 dark:text-white">{c.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(c.createdAt).toLocaleString()}</div>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{c.email}</div>
+                  <p className="mt-2 text-gray-700 dark:text-gray-200 whitespace-pre-line">{c.comment}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </motion.div>
+
+        {/* Comment Modal */}
+        {commentModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setCommentModalOpen(false)}></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="relative z-10 w-full max-w-md mx-4 bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Leave a comment</h4>
+                <button onClick={() => setCommentModalOpen(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              {cError && <div className="mb-3 text-sm text-red-600">{cError}</div>}
+              <form onSubmit={handleSubmitComment} className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                  <input value={cName} onChange={e => setCName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Your name" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                  <input type="email" value={cEmail} onChange={e => setCEmail(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="you@example.com" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Comment</label>
+                  <textarea value={cText} onChange={e => setCText(e.target.value)} rows={4} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Write your comment..." />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setCommentModalOpen(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">Cancel</button>
+                  <button type="submit" disabled={cSubmitting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60">{cSubmitting ? 'Submitting...' : 'Submit'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
 
         {/* Related Articles */}
         <motion.div
