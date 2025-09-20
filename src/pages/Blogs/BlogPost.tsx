@@ -23,6 +23,16 @@ import {
   X,
 } from "lucide-react";
 
+// Generate a unique user ID for this browser session
+function generateUserId(): string {
+  let userId = localStorage.getItem('sosapient_user_id');
+  if (!userId) {
+    userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('sosapient_user_id', userId);
+  }
+  return userId;
+}
+
 // Simple sanitizer to reduce XSS risk without external deps
 function sanitizeHtml(unsafeHtml: string): string {
   try {
@@ -119,7 +129,7 @@ const BlogPost: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [relatedBlogs, setRelatedBlogs] = useState<any[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
-  const [comments, setComments] = useState<Array<{_id?: string; name: string; email: string; comment: string; createdAt: string; avatar?: string; likeCount?: number; dislikeCount?: number}>>([]);
+  const [comments, setComments] = useState<Array<{_id?: string; name: string; email: string; comment: string; createdAt: string; avatar?: string; likeCount?: number; dislikeCount?: number; likedBy?: string[]}>>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [cName, setCName] = useState("");
@@ -130,7 +140,9 @@ const BlogPost: React.FC = () => {
   const [showAllComments, setShowAllComments] = useState(false);
   const [cAvatarFile, setCAvatarFile] = useState<File | null>(null);
   const [cAvatarPreview, setCAvatarPreview] = useState<string | null>(null);
-  const [commentVotes, setCommentVotes] = useState<Record<string, 'like' | 'dislike'>>({});
+  const [commentLikes, setCommentLikes] = useState<Record<string, { isLiked: boolean; likeCount: number }>>({});
+  const [currentUserId] = useState(() => generateUserId());
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Live tick to re-render relative time every minute
   useEffect(() => {
@@ -141,93 +153,146 @@ const BlogPost: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Load saved comment votes from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('commentVotes') || '{}';
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        setCommentVotes(parsed);
-      }
-    } catch {}
-  }, []);
-
-  // Persist votes whenever changed
-  useEffect(() => {
-    try {
-      localStorage.setItem('commentVotes', JSON.stringify(commentVotes));
-    } catch {}
-  }, [commentVotes]);
-
-  // Build a stable key for a comment (prefer Mongo _id)
-  const getCommentKey = (c: { _id?: string; email: string; createdAt: string; comment: string }): string => {
-    if (c._id) return c._id;
-    return `${c.email}|${c.createdAt}|${(c.comment || '').slice(0, 24)}`;
+  // Show notification helper
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000); // Auto-hide after 4 seconds
   };
 
-  // Send vote to backend and update counts
-  const voteComment = async (c: { _id?: string; createdAt: string; email: string; comment: string }, type: 'like' | 'dislike') => {
-    if (!blogPost?._id) return;
-    const key = getCommentKey(c);
-    const current = commentVotes[key];
-    // Determine action for backend and local optimistic counts
-    let action: 'like' | 'unlike' | 'dislike' | 'undislike' | 'switchToLike' | 'switchToDislike';
-    if (type === 'like') {
-      if (current === 'like') action = 'unlike';
-      else if (current === 'dislike') action = 'switchToLike';
-      else action = 'like';
-    } else {
-      if (current === 'dislike') action = 'undislike';
-      else if (current === 'like') action = 'switchToDislike';
-      else action = 'dislike';
+  // Initialize comment likes when comments are loaded
+  useEffect(() => {
+    if (comments.length > 0 && currentUserId) {
+      const initialLikes: Record<string, { isLiked: boolean; likeCount: number }> = {};
+      comments.forEach(comment => {
+        if (comment._id) {
+          const isLiked = Array.isArray(comment.likedBy) && comment.likedBy.includes(currentUserId);
+          initialLikes[comment._id] = {
+            isLiked,
+            likeCount: comment.likeCount || 0
+          };
+        }
+      });
+      setCommentLikes(initialLikes);
     }
+  }, [comments, currentUserId]);
 
-    // Optimistic UI update
-    setComments(prev => prev.map(item => {
-      const match = (item._id && c._id) ? item._id === c._id : (item.email === c.email && item.createdAt === c.createdAt && item.comment === c.comment);
-      if (!match) return item;
-      let like = item.likeCount || 0;
-      let dislike = item.dislikeCount || 0;
-      switch (action) {
-        case 'like': like += 1; break;
-        case 'unlike': like = Math.max(0, like - 1); break;
-        case 'dislike': dislike += 1; break;
-        case 'undislike': dislike = Math.max(0, dislike - 1); break;
-        case 'switchToLike': like += 1; dislike = Math.max(0, dislike - 1); break;
-        case 'switchToDislike': dislike += 1; like = Math.max(0, like - 1); break;
+  // Like/Unlike a comment
+  const likeComment = async (comment: { _id?: string; name: string; email: string; comment: string; createdAt: string }) => {
+    if (!blogPost?._id || !comment._id || !currentUserId) {
+      console.error('Missing required data for liking comment');
+      return;
+    }
+    
+    const commentId = comment._id;
+    const currentState = commentLikes[commentId] || { isLiked: false, likeCount: 0 };
+    
+    // Optimistic update
+    const newIsLiked = !currentState.isLiked;
+    const newLikeCount = newIsLiked ? currentState.likeCount + 1 : Math.max(0, currentState.likeCount - 1);
+    
+    setCommentLikes(prev => ({
+      ...prev,
+      [commentId]: {
+        isLiked: newIsLiked,
+        likeCount: newLikeCount
       }
-      return { ...item, likeCount: like, dislikeCount: dislike };
     }));
 
-    // Update localStorage vote state
-    toggleVote(key, type);
-
-    // Call backend
     try {
-      if (!c._id) return; // backend requires comment _id for precision
-      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/comments/${c._id}/vote`, {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/comments/${commentId}/like`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: currentUserId })
       });
-      const json = await res.json();
-      if (json?.success) {
-        // Sync exact counts from server
-        setComments(prev => prev.map(item => item._id === c._id ? { ...item, likeCount: json.data.likeCount, dislikeCount: json.data.dislikeCount } : item));
+      
+      // Check if response is ok
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
+        
+        // Handle different HTTP status codes
+        let userMessage = '';
+        switch (response.status) {
+          case 400:
+            userMessage = errorData.message || 'Invalid request. Please refresh the page and try again.';
+            break;
+          case 404:
+            userMessage = 'Comment not found. It may have been deleted.';
+            break;
+          case 500:
+            userMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            userMessage = errorData.message || `Error: ${response.status}. Please try again.`;
+        }
+        
+        console.error('API Error:', {
+          status: response.status,
+          message: errorData.message || 'Unknown error',
+          commentId,
+          blogId: blogPost._id
+        });
+        
+        // Revert optimistic update
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: currentState
+        }));
+        
+        // Show user-friendly error message (you can replace this with a toast notification)
+        showNotification(userMessage, 'error');
+        return;
       }
-    } catch {
-      // On error, we could revert optimistic update; keeping as-is for now
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update with actual server response
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: {
+            isLiked: data.data.isLiked,
+            likeCount: data.data.likeCount
+          }
+        }));
+        
+        // Also update the comments array for consistency
+        setComments(prev => prev.map(c => 
+          c._id === commentId 
+            ? { ...c, likeCount: data.data.likeCount, likedBy: data.data.likedBy }
+            : c
+        ));
+        
+        // Show success message
+        showNotification(
+          data.data.isLiked ? 'Comment liked!' : 'Like removed', 
+          'success'
+        );
+      } else {
+        console.error('API returned success: false:', data.message);
+        
+        // Revert optimistic update
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: currentState
+        }));
+        
+        // Show user-friendly error message
+        showNotification(data.message || 'Failed to update like. Please try again.', 'error');
+      }
+    } catch (error) {
+      console.error('Network error while liking comment:', error);
+      
+      // Revert optimistic update on network error
+      setCommentLikes(prev => ({
+        ...prev,
+        [commentId]: currentState
+      }));
+      
+      // Show user-friendly error message for network issues
+      showNotification('Network error. Please check your connection and try again.', 'error');
     }
-  };
-
-  const toggleVote = (key: string, type: 'like' | 'dislike') => {
-    setCommentVotes(prev => {
-      const current = prev[key];
-      const next = current === type ? undefined : type;
-      const copy = { ...prev } as Record<string, 'like' | 'dislike'>;
-      if (next) copy[key] = next; else delete copy[key];
-      return copy;
-    });
   };
 
   useEffect(() => {
@@ -468,6 +533,30 @@ const BlogPost: React.FC = () => {
 
   return (
     <>
+    {/* Notification Toast */}
+    {notification && (
+      <motion.div
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -50 }}
+        className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg max-w-sm ${
+          notification.type === 'error' 
+            ? 'bg-red-500 text-white' 
+            : 'bg-green-500 text-white'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            className="ml-3 text-white/80 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </motion.div>
+    )}
+    
     <Helmet>
   <title>{blogPost.title} | Web Development Trends 2025</title>
   <meta name="description" content={blogPost.excerpt} />
@@ -860,11 +949,10 @@ const BlogPost: React.FC = () => {
           ) : (
             <ul className="space-y-4">
               {(showAllComments ? comments : comments.slice(0, 3)).map((c, idx) => {
-                const key = getCommentKey(c);
-                const isLiked = commentVotes[key] === 'like';
-                const isDisliked = commentVotes[key] === 'dislike';
+                if (!c._id) return null; // Skip comments without _id
+                const commentState = commentLikes[c._id] || { isLiked: false, likeCount: c.likeCount || 0 };
                 return (
-                <li key={key || idx}>
+                <li key={c._id || idx}>
                   <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
                     <div className="p-5">
                       <div className="flex items-start justify-between gap-4">
@@ -884,17 +972,31 @@ const BlogPost: React.FC = () => {
                             <div className="text-xs text-gray-500 dark:text-gray-400" title={new Date(c.createdAt).toLocaleString()}>{formatTimeAgo(c.createdAt)}</div>
                           </div>
                         </div>
-                        {/* Right: heart like pill */}
+                {/* Right: heart like pill */}
                         <button
                           type="button"
-                          onClick={() => voteComment(c, 'like')}
-                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border text-sm transition ${isLiked ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                          aria-pressed={isLiked}
+                          onClick={() => likeComment(c)}
+                          disabled={!c._id} // Disable if no comment ID
+                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border text-sm transition ${
+                            !c._id 
+                              ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
+                              : commentState.isLiked 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' 
+                                : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                          aria-pressed={commentState.isLiked}
+                          title={!c._id ? 'Cannot like this comment' : commentState.isLiked ? 'Unlike comment' : 'Like comment'}
                         >
-                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${isLiked ? 'bg-emerald-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}`}>
+                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
+                            !c._id 
+                              ? 'bg-gray-200 text-gray-400'
+                              : commentState.isLiked 
+                                ? 'bg-emerald-500 text-white' 
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                          }`}>
                             <Heart className="w-3.5 h-3.5" />
                           </span>
-                          <span className="font-medium">{c.likeCount ?? 0}</span>
+                          <span className="font-medium">{commentState.likeCount}</span>
                         </button>
                       </div>
 
