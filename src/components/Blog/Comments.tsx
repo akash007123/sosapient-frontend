@@ -77,6 +77,12 @@ const Comments: React.FC<CommentsProps> = ({
   const [cAvatarFile, setCAvatarFile] = useState<File | null>(null);
   const [cAvatarPreview, setCAvatarPreview] = useState<string | null>(null);
   const [commentLikes, setCommentLikes] = useState<Record<string, { isLiked: boolean; likeCount: number }>>({});
+  
+  // Edit and Delete states
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState("");
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Live tick to re-render relative time every minute
   useEffect(() => {
@@ -117,6 +123,7 @@ const Comments: React.FC<CommentsProps> = ({
           avatar: c?.avatar ? normalizeUrl(c.avatar) : c?.avatar,
           likeCount: typeof c?.likeCount === 'number' ? c.likeCount : 0,
           dislikeCount: typeof c?.dislikeCount === 'number' ? c.dislikeCount : 0,
+          userId: c?.userId || null, // Ensure userId is preserved
         }));
         setComments(items);
       }
@@ -269,6 +276,7 @@ const Comments: React.FC<CommentsProps> = ({
       form.append('name', cName.trim());
       form.append('email', cEmail.trim());
       form.append('comment', cText.trim());
+      form.append('userId', currentUserId); // Add userId to track ownership
       if (cAvatarFile) form.append('avatar', cAvatarFile);
       const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogId}/comments`, {
         method: 'POST',
@@ -280,7 +288,17 @@ const Comments: React.FC<CommentsProps> = ({
         const createdAt = json.data?.createdAt || new Date().toISOString();
         const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
         const avatar = json.data?.avatar ? normalizeUrl(json.data.avatar) : undefined;
-        setComments(prev => [{ name: json.data.name, email: json.data.email, comment: json.data.comment, createdAt, avatar, likeCount: 0, dislikeCount: 0, _id: json.data?._id }, ...prev]);
+        setComments(prev => [{ 
+          name: json.data.name, 
+          email: json.data.email, 
+          comment: json.data.comment, 
+          createdAt, 
+          avatar, 
+          likeCount: 0, 
+          dislikeCount: 0, 
+          _id: json.data?._id,
+          userId: currentUserId // Set userId for newly created comments
+        }, ...prev]);
         setCommentModalOpen(false);
         setCName("");
         setCEmail("");
@@ -296,6 +314,100 @@ const Comments: React.FC<CommentsProps> = ({
     } finally {
       setCSubmitting(false);
     }
+  };
+
+  // Edit comment function
+  const handleEditComment = (comment: Comment) => {
+    setEditingCommentId(comment._id || null);
+    setEditCommentText(comment.comment);
+  };
+
+  // Save edited comment
+  const saveEditedComment = async (commentId: string) => {
+    if (!editCommentText.trim()) {
+      onNotification('Comment cannot be empty', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogId}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          comment: editCommentText.trim(),
+          userId: currentUserId 
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update the comment in the local state
+        setComments(prev => prev.map(c => 
+          c._id === commentId 
+            ? { ...c, comment: editCommentText.trim() }
+            : c
+        ));
+        setEditingCommentId(null);
+        setEditCommentText("");
+        onNotification('Comment updated successfully!', 'success');
+      } else {
+        onNotification(data.message || 'Failed to update comment', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      onNotification('Network error while updating comment', 'error');
+    }
+  };
+
+  // Cancel edit
+  const cancelEdit = () => {
+    setEditingCommentId(null);
+    setEditCommentText("");
+  };
+
+  // Delete comment function
+  const handleDeleteComment = (commentId: string) => {
+    setDeleteCommentId(commentId);
+    setShowDeleteModal(true);
+  };
+
+  // Confirm delete
+  const confirmDeleteComment = async () => {
+    if (!deleteCommentId) return;
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogId}/comments/${deleteCommentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove comment from local state
+        setComments(prev => prev.filter(c => c._id !== deleteCommentId));
+        setShowDeleteModal(false);
+        setDeleteCommentId(null);
+        onNotification('Comment deleted successfully!', 'success');
+      } else {
+        onNotification(data.message || 'Failed to delete comment', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      onNotification('Network error while deleting comment', 'error');
+    }
+  };
+
+  // Cancel delete
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteCommentId(null);
   };
 
   return (
@@ -377,15 +489,61 @@ const Comments: React.FC<CommentsProps> = ({
                   </div>
 
                   {/* Comment body */}
-                  <p className="mt-4 text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
-                    {c.comment}
-                  </p>
+                  {editingCommentId === c._id ? (
+                    <div className="mt-4">
+                      <textarea
+                        value={editCommentText}
+                        onChange={(e) => setEditCommentText(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500"
+                        placeholder="Edit your comment..."
+                        maxLength={5000}
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <span>{editCommentText.length}/5000 characters</span>
+                        <span className={`${editCommentText.length > 4500 ? 'text-red-600' : editCommentText.length > 3500 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {editCommentText.length > 5000 ? 'Exceeds limit!' : 'Within limit'}
+                        </span>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-3">
+                        <button
+                          onClick={cancelEdit}
+                          className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => saveEditedComment(c._id!)}
+                          disabled={!editCommentText.trim() || editCommentText.length > 5000}
+                          className="px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                      {c.comment}
+                    </p>
+                  )}
 
-                  {/* Optional footer actions (hidden for now) */}
-                  <div className="mt-4 flex items-center justify-end gap-4 text-sm">
-                    <button className="text-red-600 hover:text-red-700">Delete</button>
-                    <button className="text-primary-600 hover:text-primary-700">Edit</button>
-                  </div>
+                  {/* Footer actions - only show for comment owner */}
+                  {c.userId === currentUserId && editingCommentId !== c._id && (
+                    <div className="mt-4 flex items-center justify-end gap-4 text-sm">
+                      <button 
+                        onClick={() => handleEditComment(c)}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteComment(c._id!)}
+                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </li>
@@ -479,6 +637,42 @@ const Comments: React.FC<CommentsProps> = ({
                 <button type="submit" disabled={cSubmitting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60">{cSubmitting ? 'Submitting...' : 'Submit'}</button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={cancelDelete}></div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Comment</h4>
+              <button onClick={cancelDelete} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete this comment? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteComment}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
