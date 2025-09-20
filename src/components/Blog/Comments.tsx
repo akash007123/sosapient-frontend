@@ -1,248 +1,481 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { 
-  ThumbsUp, 
-  Reply, 
-  Send, 
-  MoreVertical,
-  MessageCircle,
-  Clock,
-  User
-} from 'lucide-react';
+  Heart,
+  MessageSquare,
+  X,
+} from "lucide-react";
 
 interface Comment {
-  id: number;
-  author: string;
-  authorImage: string;
-  content: string;
-  date: string;
-  likes: number;
-  replies: Comment[];
-  isLiked?: boolean;
+  _id?: string;
+  name: string;
+  email: string;
+  comment: string;
+  createdAt: string;
+  avatar?: string;
+  likeCount?: number;
+  dislikeCount?: number;
+  likedBy?: string[];
 }
 
 interface CommentsProps {
-  comments: Comment[];
-  onAddComment: (content: string, parentId?: number) => void;
-  onLikeComment: (id: number) => void;
+  blogId: string;
+  slug: string;
+  currentUserId: string;
+  onNotification: (message: string, type: 'success' | 'error') => void;
 }
 
-const CommentCard: React.FC<{
-  comment: Comment;
-  isReply?: boolean;
-  onLike: (id: number) => void;
-  onReply: (id: number) => void;
-  onShowReplies: (id: number) => void;
-  showReplies: boolean;
-  replyCount: number;
-}> = ({ 
-  comment, 
-  isReply = false, 
-  onLike, 
-  onReply, 
-  onShowReplies,
-  showReplies,
-  replyCount
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className={`bg-white dark:bg-gray-800 rounded-xl p-6 mb-4 shadow-sm hover:shadow-md transition-shadow ${
-      isReply ? 'ml-8 border-l-2 border-primary-500' : ''
-    }`}
-  >
-    <div className="flex items-start space-x-4">
-      <div className="relative">
-        <img
-          src={comment.authorImage}
-          alt={comment.author}
-          className="w-10 h-10 rounded-full object-cover ring-2 ring-primary-500"
-        />
-        {!isReply && (
-          <div className="absolute -bottom-1 -right-1 bg-primary-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-            <MessageCircle className="w-3 h-3" />
-          </div>
-        )}
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <span className="font-medium text-gray-900 dark:text-white">{comment.author}</span>
-            <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-              <Clock className="w-3 h-3 mr-1" />
-              {new Date(comment.date).toLocaleDateString()}
-            </span>
-          </div>
-          <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <MoreVertical className="w-5 h-5" />
-          </button>
-        </div>
-        <p className="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">{comment.content}</p>
-        <div className="flex items-center space-x-4">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onLike(comment.id)}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-colors ${
-              comment.isLiked
-                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            <ThumbsUp className="w-4 h-4" />
-            <span>{comment.likes}</span>
-          </motion.button>
-          {!isReply && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onReply(comment.id)}
-              className="flex items-center space-x-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            >
-              <Reply className="w-4 h-4" />
-              <span>Reply</span>
-            </motion.button>
-          )}
-          {!isReply && replyCount > 0 && (
-            <button
-              onClick={() => onShowReplies(comment.id)}
-              className="text-primary-600 dark:text-primary-400 hover:underline text-sm"
-            >
-              {showReplies ? 'Hide replies' : `Show ${replyCount} replies`}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  </motion.div>
-);
+// Relative time formatter (e.g., "2 minutes ago")
+function formatTimeAgo(dateValue: string | number | Date): string {
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  const now = new Date();
+  const then = new Date(dateValue);
+  if (isNaN(then.getTime())) return '';
+  const diffMs = then.getTime() - now.getTime();
+  const minutes = Math.round(diffMs / (60 * 1000));
+  const hours = Math.round(diffMs / (60 * 60 * 1000));
+  const days = Math.round(diffMs / (24 * 60 * 60 * 1000));
 
-const Comments: React.FC<CommentsProps> = ({ comments, onAddComment, onLikeComment }) => {
-  const [replyTo, setReplyTo] = useState<number | null>(null);
-  const [newComment, setNewComment] = useState('');
-  const [showReplies, setShowReplies] = useState<{ [key: number]: boolean }>({});
+  // Show seconds for very recent comments (< 1 min)
+  if (Math.abs(minutes) < 1) {
+    const seconds = Math.round(diffMs / 1000);
+    return rtf.format(seconds, 'second');
+  }
+  if (Math.abs(hours) < 1) return rtf.format(minutes, 'minute');
+  if (Math.abs(days) < 1) return rtf.format(hours, 'hour');
+  if (Math.abs(days) < 30) return rtf.format(days, 'day');
+  const months = Math.round(days / 30);
+  if (Math.abs(months) < 12) return rtf.format(months, 'month');
+  const years = Math.round(months / 12);
+  return rtf.format(years, 'year');
+}
 
-  const handleSubmit = (e: React.FormEvent, parentId?: number) => {
-    e.preventDefault();
-    if (newComment.trim()) {
-      onAddComment(newComment, parentId);
-      setNewComment('');
-      setReplyTo(null);
+// Generate initials from a full name for avatars
+function getInitials(name?: string): string {
+  const n = (name || '').trim();
+  if (!n) return '?';
+  const parts = n.split(/\s+/).slice(0, 2);
+  return parts.map(p => p.charAt(0).toUpperCase()).join('') || '?';
+}
+
+const Comments: React.FC<CommentsProps> = ({ 
+  blogId, 
+  slug, 
+  currentUserId, 
+  onNotification 
+}) => {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [cName, setCName] = useState("");
+  const [cEmail, setCEmail] = useState("");
+  const [cText, setCText] = useState("");
+  const [cSubmitting, setCSubmitting] = useState(false);
+  const [cError, setCError] = useState<string | null>(null);
+  const [showAllComments, setShowAllComments] = useState(false);
+  const [cAvatarFile, setCAvatarFile] = useState<File | null>(null);
+  const [cAvatarPreview, setCAvatarPreview] = useState<string | null>(null);
+  const [commentLikes, setCommentLikes] = useState<Record<string, { isLiked: boolean; likeCount: number }>>({});
+
+  // Live tick to re-render relative time every minute
+  useEffect(() => {
+    const id = setInterval(() => {
+      // Trigger re-render; no state change needed besides dummy set
+      setComments((prev) => [...prev]);
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Initialize comment likes when comments are loaded
+  useEffect(() => {
+    if (comments.length > 0 && currentUserId) {
+      const initialLikes: Record<string, { isLiked: boolean; likeCount: number }> = {};
+      comments.forEach(comment => {
+        if (comment._id) {
+          const isLiked = Array.isArray(comment.likedBy) && comment.likedBy.includes(currentUserId);
+          initialLikes[comment._id] = {
+            isLiked,
+            likeCount: comment.likeCount || 0
+          };
+        }
+      });
+      setCommentLikes(initialLikes);
+    }
+  }, [comments, currentUserId]);
+
+  // Fetch comments for current blog by slug
+  const fetchComments = async (postSlug: string) => {
+    try {
+      setCommentsLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${postSlug}/comments`);
+      const json = await res.json();
+      if (json.success) {
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
+        const items = (json.data || []).map((c: any) => ({
+          ...c,
+          avatar: c?.avatar ? normalizeUrl(c.avatar) : c?.avatar,
+          likeCount: typeof c?.likeCount === 'number' ? c.likeCount : 0,
+          dislikeCount: typeof c?.dislikeCount === 'number' ? c.dislikeCount : 0,
+        }));
+        setComments(items);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setCommentsLoading(false);
     }
   };
 
-  const toggleReplies = (commentId: number) => {
-    setShowReplies(prev => ({
+  // Load comments when component mounts
+  useEffect(() => {
+    if (slug) {
+      fetchComments(slug);
+    }
+  }, [slug]);
+
+  // Like/Unlike a comment
+  const likeComment = async (comment: Comment) => {
+    if (!blogId || !comment._id || !currentUserId) {
+      console.error('Missing required data for liking comment');
+      return;
+    }
+    
+    const commentId = comment._id;
+    const currentState = commentLikes[commentId] || { isLiked: false, likeCount: 0 };
+    
+    // Optimistic update
+    const newIsLiked = !currentState.isLiked;
+    const newLikeCount = newIsLiked ? currentState.likeCount + 1 : Math.max(0, currentState.likeCount - 1);
+    
+    setCommentLikes(prev => ({
       ...prev,
-      [commentId]: !prev[commentId]
+      [commentId]: {
+        isLiked: newIsLiked,
+        likeCount: newLikeCount
+      }
     }));
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogId}/comments/${commentId}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+      
+      // Check if response is ok
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
+        
+        // Handle different HTTP status codes
+        let userMessage = '';
+        switch (response.status) {
+          case 400:
+            userMessage = errorData.message || 'Invalid request. Please refresh the page and try again.';
+            break;
+          case 404:
+            userMessage = 'Comment not found. It may have been deleted.';
+            break;
+          case 500:
+            userMessage = 'Server error. Please try again later.';
+            break;
+          default:
+            userMessage = errorData.message || `Error: ${response.status}. Please try again.`;
+        }
+        
+        console.error('API Error:', {
+          status: response.status,
+          message: errorData.message || 'Unknown error',
+          commentId,
+          blogId: blogId
+        });
+        
+        // Revert optimistic update
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: currentState
+        }));
+        
+        // Show user-friendly error message
+        onNotification(userMessage, 'error');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update with actual server response
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: {
+            isLiked: data.data.isLiked,
+            likeCount: data.data.likeCount
+          }
+        }));
+        
+        // Also update the comments array for consistency
+        setComments(prev => prev.map(c => 
+          c._id === commentId 
+            ? { ...c, likeCount: data.data.likeCount, likedBy: data.data.likedBy }
+            : c
+        ));
+        
+        // Show success message
+        onNotification(
+          data.data.isLiked ? 'Comment liked!' : 'Like removed', 
+          'success'
+        );
+      } else {
+        console.error('API returned success: false:', data.message);
+        
+        // Revert optimistic update
+        setCommentLikes(prev => ({
+          ...prev,
+          [commentId]: currentState
+        }));
+        
+        // Show user-friendly error message
+        onNotification(data.message || 'Failed to update like. Please try again.', 'error');
+      }
+    } catch (error) {
+      console.error('Network error while liking comment:', error);
+      
+      // Revert optimistic update on network error
+      setCommentLikes(prev => ({
+        ...prev,
+        [commentId]: currentState
+      }));
+      
+      // Show user-friendly error message for network issues
+      onNotification('Network error. Please check your connection and try again.', 'error');
+    }
   };
 
-  const renderComment = (comment: Comment, isReply = false) => (
-    <div key={comment.id}>
-      <CommentCard
-        comment={comment}
-        isReply={isReply}
-        onLike={onLikeComment}
-        onReply={setReplyTo}
-        onShowReplies={toggleReplies}
-        showReplies={showReplies[comment.id]}
-        replyCount={comment.replies.length}
-      />
-      {replyTo === comment.id && (
-        <motion.form
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          onSubmit={(e) => handleSubmit(e, comment.id)}
-          className="ml-8 mb-4"
-        >
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a reply..."
-              className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="submit"
-              className="p-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-            >
-              <Send className="w-5 h-5" />
-            </motion.button>
-          </div>
-        </motion.form>
-      )}
-      <AnimatePresence>
-        {showReplies[comment.id] && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4"
-          >
-            {comment.replies.map(reply => renderComment(reply, true))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+  // Submit a new comment
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blogId) return;
+    setCError(null);
+    const emailOk = /.+@.+\..+/.test(cEmail.trim());
+    if (!cName.trim() || !emailOk || !cText.trim()) {
+      setCError('Please provide valid name, email and comment.');
+      return;
+    }
+    try {
+      setCSubmitting(true);
+      const form = new FormData();
+      form.append('name', cName.trim());
+      form.append('email', cEmail.trim());
+      form.append('comment', cText.trim());
+      if (cAvatarFile) form.append('avatar', cAvatarFile);
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogId}/comments`, {
+        method: 'POST',
+        body: form
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Optimistically prepend
+        const createdAt = json.data?.createdAt || new Date().toISOString();
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
+        const avatar = json.data?.avatar ? normalizeUrl(json.data.avatar) : undefined;
+        setComments(prev => [{ name: json.data.name, email: json.data.email, comment: json.data.comment, createdAt, avatar, likeCount: 0, dislikeCount: 0, _id: json.data?._id }, ...prev]);
+        setCommentModalOpen(false);
+        setCName("");
+        setCEmail("");
+        setCText("");
+        setCAvatarFile(null);
+        setCAvatarPreview(null);
+        onNotification('Comment added successfully!', 'success');
+      } else {
+        setCError(json.message || 'Failed to add comment');
+      }
+    } catch (err) {
+      setCError('Network error while adding comment');
+    } finally {
+      setCSubmitting(false);
+    }
+  };
 
   return (
-    <div className="mt-12">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Comments ({comments.length})
-        </h2>
-        <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
-          <MessageCircle className="w-5 h-5" />
-          <span>Join the discussion</span>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.45 }}
+      className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Comments{comments.length ? ` (${comments.length})` : ''}
+        </h3>
+        <button
+          onClick={() => setCommentModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+        >
+          <MessageSquare className="w-4 h-4" />
+          Leave a comment
+        </button>
       </div>
 
-      <form onSubmit={(e) => handleSubmit(e)} className="mb-8">
-        <div className="flex items-start space-x-4">
-          <div className="relative">
-            <img
-              src="https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1"
-              alt="Your avatar"
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-primary-500"
-            />
-            <div className="absolute -bottom-1 -right-1 bg-primary-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              <User className="w-3 h-3" />
-            </div>
-          </div>
-          <div className="flex-1">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Share your thoughts..."
-              className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-              rows={3}
-            />
-            <div className="flex justify-end mt-2">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                type="submit"
-                className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center space-x-2"
-              >
-                <span>Post Comment</span>
-                <Send className="w-4 h-4" />
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </form>
+      {commentsLoading ? (
+        <div className="text-gray-500 dark:text-gray-400">Loading comments...</div>
+      ) : comments.length === 0 ? (
+        <div className="text-gray-500 dark:text-gray-400">Be the first to comment.</div>
+      ) : (
+        <ul className="space-y-4">
+          {(showAllComments ? comments : comments.slice(0, 3)).map((c, idx) => {
+            if (!c._id) return null; // Skip comments without _id
+            const commentState = commentLikes[c._id] || { isLiked: false, likeCount: c.likeCount || 0 };
+            return (
+            <li key={c._id || idx}>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left: avatar + meta */}
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="flex-shrink-0">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="h-10 w-10 rounded-full object-cover shadow-sm" />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 text-white flex items-center justify-center font-semibold shadow-sm">
+                            {getInitials(c.name)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 dark:text-white truncate">@{(c.name || '').trim().replace(/\s+/g,'').toLowerCase() || 'reader'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400" title={new Date(c.createdAt).toLocaleString()}>{formatTimeAgo(c.createdAt)}</div>
+                      </div>
+                    </div>
+            {/* Right: heart like pill */}
+                    <button
+                      type="button"
+                      onClick={() => likeComment(c)}
+                      disabled={!c._id} // Disable if no comment ID
+                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border text-sm transition ${
+                        !c._id 
+                          ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200'
+                          : commentState.isLiked 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' 
+                            : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                      aria-pressed={commentState.isLiked}
+                      title={!c._id ? 'Cannot like this comment' : commentState.isLiked ? 'Unlike comment' : 'Like comment'}
+                    >
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
+                        !c._id 
+                          ? 'bg-gray-200 text-gray-400'
+                          : commentState.isLiked 
+                            ? 'bg-emerald-500 text-white' 
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                      }`}>
+                        <Heart className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="font-medium">{commentState.likeCount}</span>
+                    </button>
+                  </div>
 
-      <div className="space-y-4">
-        {comments.map(comment => renderComment(comment))}
-      </div>
-    </div>
+                  {/* Comment body */}
+                  <p className="mt-4 text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                    {c.comment}
+                  </p>
+
+                  {/* Optional footer actions (hidden for now) */}
+                  {/* <div className="mt-4 flex items-center justify-end gap-4 text-sm">
+                    <button className="text-red-600 hover:text-red-700">Delete</button>
+                    <button className="text-primary-600 hover:text-primary-700">Edit</button>
+                  </div> */}
+                </div>
+              </div>
+            </li>
+          );})}
+        </ul>
+      )}
+
+      {/* View all / View less toggle */}
+      {!commentsLoading && comments.length > 3 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowAllComments(v => !v)}
+            className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+          >
+            {showAllComments ? 'View less' : 'View all comments'}
+          </button>
+        </div>
+      )}
+
+      {/* Comment Modal */}
+      {commentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setCommentModalOpen(false)}></div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-md mx-4 bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Leave a comment</h4>
+              <button onClick={() => setCommentModalOpen(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            {cError && <div className="mb-3 text-sm text-red-600">{cError}</div>}
+            <form onSubmit={handleSubmitComment} className="space-y-3" encType="multipart/form-data">
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input value={cName} onChange={e => setCName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Your name" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input type="email" value={cEmail} onChange={e => setCEmail(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="you@example.com" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Comment</label>
+                <textarea value={cText} onChange={e => setCText(e.target.value)} rows={4} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Write your comment..." />
+              </div>
+              {/* Optional Avatar Upload */}
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Avatar (optional)</label>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                    {cAvatarPreview ? (
+                      <img src={cAvatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-gray-500">No image</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setCAvatarFile(file);
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => setCAvatarPreview(reader.result as string);
+                          reader.readAsDataURL(file);
+                        } else {
+                          setCAvatarPreview(null);
+                        }
+                      }}
+                    />
+                    {cAvatarFile && (
+                      <button type="button" onClick={() => { setCAvatarFile(null); setCAvatarPreview(null); }} className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">Remove</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setCommentModalOpen(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">Cancel</button>
+                <button type="submit" disabled={cSubmitting} className="px-4 py-2 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60">{cSubmitting ? 'Submitting...' : 'Submit'}</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </motion.div>
   );
 };
 
-export default Comments; 
+export default Comments;
