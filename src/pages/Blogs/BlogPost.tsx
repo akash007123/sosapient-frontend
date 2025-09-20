@@ -14,6 +14,8 @@ import {
   Check,
   Bookmark,
   ThumbsUp,
+  ThumbsDown,
+  Heart,
   Eye,
   ChevronRight,
   Mail,
@@ -70,6 +72,39 @@ function getValidLocaleDate(dateValue: any, fallback: string = "Unknown date"): 
   }).format(dateObj);
 }
 
+// Relative time formatter (e.g., "2 minutes ago")
+function formatTimeAgo(dateValue: string | number | Date): string {
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  const now = new Date();
+  const then = new Date(dateValue);
+  if (isNaN(then.getTime())) return '';
+  const diffMs = then.getTime() - now.getTime();
+  const minutes = Math.round(diffMs / (60 * 1000));
+  const hours = Math.round(diffMs / (60 * 60 * 1000));
+  const days = Math.round(diffMs / (24 * 60 * 60 * 1000));
+
+  // Show seconds for very recent comments (< 1 min)
+  if (Math.abs(minutes) < 1) {
+    const seconds = Math.round(diffMs / 1000);
+    return rtf.format(seconds, 'second');
+  }
+  if (Math.abs(hours) < 1) return rtf.format(minutes, 'minute');
+  if (Math.abs(days) < 1) return rtf.format(hours, 'hour');
+  if (Math.abs(days) < 30) return rtf.format(days, 'day');
+  const months = Math.round(days / 30);
+  if (Math.abs(months) < 12) return rtf.format(months, 'month');
+  const years = Math.round(months / 12);
+  return rtf.format(years, 'year');
+}
+
+// Generate initials from a full name for avatars
+function getInitials(name?: string): string {
+  const n = (name || '').trim();
+  if (!n) return '?';
+  const parts = n.split(/\s+/).slice(0, 2);
+  return parts.map(p => p.charAt(0).toUpperCase()).join('') || '?';
+}
+
 
 const BlogPost: React.FC = () => {
   const { slug } = useParams();
@@ -84,7 +119,7 @@ const BlogPost: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [relatedBlogs, setRelatedBlogs] = useState<any[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
-  const [comments, setComments] = useState<Array<{name: string; email: string; comment: string; createdAt: string}>>([]);
+  const [comments, setComments] = useState<Array<{_id?: string; name: string; email: string; comment: string; createdAt: string; avatar?: string; likeCount?: number; dislikeCount?: number}>>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [cName, setCName] = useState("");
@@ -92,6 +127,108 @@ const BlogPost: React.FC = () => {
   const [cText, setCText] = useState("");
   const [cSubmitting, setCSubmitting] = useState(false);
   const [cError, setCError] = useState<string | null>(null);
+  const [showAllComments, setShowAllComments] = useState(false);
+  const [cAvatarFile, setCAvatarFile] = useState<File | null>(null);
+  const [cAvatarPreview, setCAvatarPreview] = useState<string | null>(null);
+  const [commentVotes, setCommentVotes] = useState<Record<string, 'like' | 'dislike'>>({});
+
+  // Live tick to re-render relative time every minute
+  useEffect(() => {
+    const id = setInterval(() => {
+      // Trigger re-render; no state change needed besides dummy set
+      setComments((prev) => [...prev]);
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Load saved comment votes from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('commentVotes') || '{}';
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        setCommentVotes(parsed);
+      }
+    } catch {}
+  }, []);
+
+  // Persist votes whenever changed
+  useEffect(() => {
+    try {
+      localStorage.setItem('commentVotes', JSON.stringify(commentVotes));
+    } catch {}
+  }, [commentVotes]);
+
+  // Build a stable key for a comment (prefer Mongo _id)
+  const getCommentKey = (c: { _id?: string; email: string; createdAt: string; comment: string }): string => {
+    if (c._id) return c._id;
+    return `${c.email}|${c.createdAt}|${(c.comment || '').slice(0, 24)}`;
+  };
+
+  // Send vote to backend and update counts
+  const voteComment = async (c: { _id?: string; createdAt: string; email: string; comment: string }, type: 'like' | 'dislike') => {
+    if (!blogPost?._id) return;
+    const key = getCommentKey(c);
+    const current = commentVotes[key];
+    // Determine action for backend and local optimistic counts
+    let action: 'like' | 'unlike' | 'dislike' | 'undislike' | 'switchToLike' | 'switchToDislike';
+    if (type === 'like') {
+      if (current === 'like') action = 'unlike';
+      else if (current === 'dislike') action = 'switchToLike';
+      else action = 'like';
+    } else {
+      if (current === 'dislike') action = 'undislike';
+      else if (current === 'like') action = 'switchToDislike';
+      else action = 'dislike';
+    }
+
+    // Optimistic UI update
+    setComments(prev => prev.map(item => {
+      const match = (item._id && c._id) ? item._id === c._id : (item.email === c.email && item.createdAt === c.createdAt && item.comment === c.comment);
+      if (!match) return item;
+      let like = item.likeCount || 0;
+      let dislike = item.dislikeCount || 0;
+      switch (action) {
+        case 'like': like += 1; break;
+        case 'unlike': like = Math.max(0, like - 1); break;
+        case 'dislike': dislike += 1; break;
+        case 'undislike': dislike = Math.max(0, dislike - 1); break;
+        case 'switchToLike': like += 1; dislike = Math.max(0, dislike - 1); break;
+        case 'switchToDislike': dislike += 1; like = Math.max(0, like - 1); break;
+      }
+      return { ...item, likeCount: like, dislikeCount: dislike };
+    }));
+
+    // Update localStorage vote state
+    toggleVote(key, type);
+
+    // Call backend
+    try {
+      if (!c._id) return; // backend requires comment _id for precision
+      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/comments/${c._id}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      const json = await res.json();
+      if (json?.success) {
+        // Sync exact counts from server
+        setComments(prev => prev.map(item => item._id === c._id ? { ...item, likeCount: json.data.likeCount, dislikeCount: json.data.dislikeCount } : item));
+      }
+    } catch {
+      // On error, we could revert optimistic update; keeping as-is for now
+    }
+  };
+
+  const toggleVote = (key: string, type: 'like' | 'dislike') => {
+    setCommentVotes(prev => {
+      const current = prev[key];
+      const next = current === type ? undefined : type;
+      const copy = { ...prev } as Record<string, 'like' | 'dislike'>;
+      if (next) copy[key] = next; else delete copy[key];
+      return copy;
+    });
+  };
 
   useEffect(() => {
     if (!slug) {
@@ -209,7 +346,14 @@ const BlogPost: React.FC = () => {
       const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${postSlug}/comments`);
       const json = await res.json();
       if (json.success) {
-        setComments(json.data || []);
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
+        const items = (json.data || []).map((c: any) => ({
+          ...c,
+          avatar: c?.avatar ? normalizeUrl(c.avatar) : c?.avatar,
+          likeCount: typeof c?.likeCount === 'number' ? c.likeCount : 0,
+          dislikeCount: typeof c?.dislikeCount === 'number' ? c.dislikeCount : 0,
+        }));
+        setComments(items);
       }
     } catch (e) {
       // ignore
@@ -230,20 +374,28 @@ const BlogPost: React.FC = () => {
     }
     try {
       setCSubmitting(true);
+      const form = new FormData();
+      form.append('name', cName.trim());
+      form.append('email', cEmail.trim());
+      form.append('comment', cText.trim());
+      if (cAvatarFile) form.append('avatar', cAvatarFile);
       const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/blogs/${blogPost._id}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cName.trim(), email: cEmail.trim(), comment: cText.trim() })
+        body: form
       });
       const json = await res.json();
       if (json.success) {
         // Optimistically prepend
         const createdAt = json.data?.createdAt || new Date().toISOString();
-        setComments(prev => [{ name: json.data.name, email: json.data.email, comment: json.data.comment, createdAt }, ...prev]);
+        const normalizeUrl = (url: string) => url?.startsWith('/uploads') ? `${import.meta.env.VITE_BASE_URL}${url}` : url;
+        const avatar = json.data?.avatar ? normalizeUrl(json.data.avatar) : undefined;
+        setComments(prev => [{ name: json.data.name, email: json.data.email, comment: json.data.comment, createdAt, avatar, likeCount: 0, dislikeCount: 0, _id: json.data?._id }, ...prev]);
         setCommentModalOpen(false);
         setCName("");
         setCEmail("");
         setCText("");
+        setCAvatarFile(null);
+        setCAvatarPreview(null);
       } else {
         setCError(json.message || 'Failed to add comment');
       }
@@ -690,7 +842,7 @@ const BlogPost: React.FC = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Comments
+              Comments{comments.length ? ` (${comments.length})` : ''}
             </h3>
             <button
               onClick={() => setCommentModalOpen(true)}
@@ -707,17 +859,72 @@ const BlogPost: React.FC = () => {
             <div className="text-gray-500 dark:text-gray-400">Be the first to comment.</div>
           ) : (
             <ul className="space-y-4">
-              {comments.map((c, idx) => (
-                <li key={idx} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900 dark:text-white">{c.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{new Date(c.createdAt).toLocaleString()}</div>
+              {(showAllComments ? comments : comments.slice(0, 3)).map((c, idx) => {
+                const key = getCommentKey(c);
+                const isLiked = commentVotes[key] === 'like';
+                const isDisliked = commentVotes[key] === 'dislike';
+                return (
+                <li key={key || idx}>
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        {/* Left: avatar + meta */}
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="flex-shrink-0">
+                            {c.avatar ? (
+                              <img src={c.avatar} alt={c.name} className="h-10 w-10 rounded-full object-cover shadow-sm" />
+                            ) : (
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 text-white flex items-center justify-center font-semibold shadow-sm">
+                                {getInitials(c.name)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-gray-900 dark:text-white truncate">@{(c.name || '').trim().replace(/\s+/g,'').toLowerCase() || 'reader'}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400" title={new Date(c.createdAt).toLocaleString()}>{formatTimeAgo(c.createdAt)}</div>
+                          </div>
+                        </div>
+                        {/* Right: heart like pill */}
+                        <button
+                          type="button"
+                          onClick={() => voteComment(c, 'like')}
+                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border text-sm transition ${isLiked ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' : 'bg-white text-gray-600 border-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                          aria-pressed={isLiked}
+                        >
+                          <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${isLiked ? 'bg-emerald-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}`}>
+                            <Heart className="w-3.5 h-3.5" />
+                          </span>
+                          <span className="font-medium">{c.likeCount ?? 0}</span>
+                        </button>
+                      </div>
+
+                      {/* Comment body */}
+                      <p className="mt-4 text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                        {c.comment}
+                      </p>
+
+                      {/* Optional footer actions (hidden for now) */}
+                      {/* <div className="mt-4 flex items-center justify-end gap-4 text-sm">
+                        <button className="text-red-600 hover:text-red-700">Delete</button>
+                        <button className="text-primary-600 hover:text-primary-700">Edit</button>
+                      </div> */}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{c.email}</div>
-                  <p className="mt-2 text-gray-700 dark:text-gray-200 whitespace-pre-line">{c.comment}</p>
                 </li>
-              ))}
+              );})}
             </ul>
+          )}
+
+          {/* View all / View less toggle */}
+          {!commentsLoading && comments.length > 3 && (
+            <div className="mt-4">
+              <button
+                onClick={() => setShowAllComments(v => !v)}
+                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+              >
+                {showAllComments ? 'View less' : 'View all comments'}
+              </button>
+            </div>
           )}
         </motion.div>
 
@@ -737,7 +944,7 @@ const BlogPost: React.FC = () => {
                 </button>
               </div>
               {cError && <div className="mb-3 text-sm text-red-600">{cError}</div>}
-              <form onSubmit={handleSubmitComment} className="space-y-3">
+              <form onSubmit={handleSubmitComment} className="space-y-3" encType="multipart/form-data">
                 <div>
                   <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Name</label>
                   <input value={cName} onChange={e => setCName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Your name" />
@@ -749,6 +956,39 @@ const BlogPost: React.FC = () => {
                 <div>
                   <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Comment</label>
                   <textarea value={cText} onChange={e => setCText(e.target.value)} rows={4} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Write your comment..." />
+                </div>
+                {/* Optional Avatar Upload */}
+                <div>
+                  <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Avatar (optional)</label>
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                      {cAvatarPreview ? (
+                        <img src={cAvatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-xs text-gray-500">No image</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          setCAvatarFile(file);
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => setCAvatarPreview(reader.result as string);
+                            reader.readAsDataURL(file);
+                          } else {
+                            setCAvatarPreview(null);
+                          }
+                        }}
+                      />
+                      {cAvatarFile && (
+                        <button type="button" onClick={() => { setCAvatarFile(null); setCAvatarPreview(null); }} className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">Remove</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setCommentModalOpen(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">Cancel</button>
