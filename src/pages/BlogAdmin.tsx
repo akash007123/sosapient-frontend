@@ -76,6 +76,25 @@ const BlogAdmin: React.FC = () => {
     fetchStats();
   }, []);
 
+  // Auto-save functionality for long content
+  useEffect(() => {
+    if (!editingBlog || !editingBlog.content) return;
+    
+    const autoSaveTimer = setTimeout(() => {
+      // Save to localStorage as backup for very long content
+      const backupData = {
+        title: editingBlog.title,
+        excerpt: editingBlog.excerpt,
+        content: editingBlog.content,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem('sosapient_blog_backup', JSON.stringify(backupData));
+      console.log('Content auto-saved to localStorage');
+    }, 10000); // Auto-save every 10 seconds
+
+    return () => clearTimeout(autoSaveTimer);
+  }, [editingBlog?.content, editingBlog?.title, editingBlog?.excerpt]);
+
   const fetchBlogs = async () => {
     try {
       setLoading(true);
@@ -170,6 +189,9 @@ const BlogAdmin: React.FC = () => {
       if (data.success) {
         await fetchBlogs();
         await fetchStats();
+        // Clear backup on successful save
+        localStorage.removeItem('sosapient_blog_backup');
+        console.log('Blog saved successfully, backup cleared');
         setIsEditing(false);
         setEditingBlog(null);
       } else {
@@ -240,14 +262,42 @@ const BlogAdmin: React.FC = () => {
   };
 
   const handleNew = () => {
-    setEditingBlog({ 
+    // Check for backup content
+    const backup = localStorage.getItem('sosapient_blog_backup');
+    let newBlogState = { 
       ...initialBlogState,
       seo: {
         metaTitle: '',
         metaDescription: '',
         keywords: []
       }
-    });
+    };
+    
+    if (backup) {
+      try {
+        const backupData = JSON.parse(backup);
+        const backupTime = new Date(backupData.timestamp);
+        const timeDiff = new Date().getTime() - backupTime.getTime();
+        const hoursDiff = timeDiff / (1000 * 3600);
+        
+        // If backup is less than 24 hours old and has substantial content
+        if (hoursDiff < 24 && backupData.content && backupData.content.length > 100) {
+          const restore = confirm(`Found unsaved content from ${backupTime.toLocaleString()}. Would you like to restore it?`);
+          if (restore) {
+            newBlogState = {
+              ...newBlogState,
+              title: backupData.title || '',
+              excerpt: backupData.excerpt || '',
+              content: backupData.content || ''
+            };
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing backup data:', e);
+      }
+    }
+    
+    setEditingBlog(newBlogState);
     setIsEditing(true);
   };
 
@@ -337,8 +387,15 @@ const BlogAdmin: React.FC = () => {
                     value={editingBlog.title}
                     onChange={(e) => setEditingBlog({ ...editingBlog, title: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Enter blog title..."
+                    placeholder="Enter blog title... (Up to 500 characters)"
                   />
+                  {/* Title character count */}
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span>{editingBlog.title.length}/500 characters</span>
+                    <span className={`${editingBlog.title.length > 450 ? 'text-red-600' : editingBlog.title.length > 350 ? 'text-amber-600' : 'text-green-600'}`}>
+                      {editingBlog.title.length > 500 ? 'Exceeds limit!' : 'Within limit'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Excerpt */}
@@ -349,10 +406,17 @@ const BlogAdmin: React.FC = () => {
                   <textarea
                     value={editingBlog.excerpt}
                     onChange={(e) => setEditingBlog({ ...editingBlog, excerpt: e.target.value })}
-                    rows={3}
+                    rows={4} // Increased from 3 to 4 rows for longer excerpts
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Brief description of the blog post..."
+                    placeholder="Brief description of the blog post... (Up to 1000 characters)"
                   />
+                  {/* Excerpt character count */}
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span>{editingBlog.excerpt.length}/1000 characters</span>
+                    <span className={`${editingBlog.excerpt.length > 900 ? 'text-red-600' : editingBlog.excerpt.length > 700 ? 'text-amber-600' : 'text-green-600'}`}>
+                      {editingBlog.excerpt.length > 1000 ? 'Exceeds limit!' : 'Within limit'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Content */}
@@ -363,10 +427,17 @@ const BlogAdmin: React.FC = () => {
                   <textarea
                     value={editingBlog.content}
                     onChange={(e) => setEditingBlog({ ...editingBlog, content: e.target.value })}
-                    rows={15}
+                    rows={25} // Increased from 15 to 25 rows for better visibility of long content
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Write your blog content here..."
+                    placeholder="Write your blog content here... (No character limit - write as much as you need)"
                   />
+                  {/* Character count feedback */}
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span>Content length: {editingBlog.content.length.toLocaleString()} characters</span>
+                    <span className={`${editingBlog.content.length > 100000 ? 'text-amber-600' : editingBlog.content.length > 500000 ? 'text-red-600' : 'text-green-600'}`}>
+                      {editingBlog.content.length > 500000 ? 'Very long content' : editingBlog.content.length > 100000 ? 'Long content' : 'Normal length'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Sections */}
@@ -399,9 +470,9 @@ const BlogAdmin: React.FC = () => {
                             newSections[idx].content = e.target.value;
                             setEditingBlog({ ...editingBlog, sections: newSections });
                           }}
-                          rows={4}
+                          rows={6} // Increased from 4 to 6 rows for section content
                           className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded"
-                          placeholder="Section content..."
+                          placeholder="Section content... (No character limit)"
                         />
                       </div>
                       <div className="mb-2">
@@ -451,6 +522,34 @@ const BlogAdmin: React.FC = () => {
 
               {/* Sidebar */}
               <div className="space-y-6">
+                {/* Information Panel for New Limits */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <div className="w-5 h-5 text-blue-500">
+                        ℹ️
+                      </div>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                        Enhanced Limits for Long Blog Posts
+                      </h3>
+                      <div className="mt-2 text-sm text-blue-700 dark:text-blue-200">
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Title: Up to 500 characters (increased from 200)</li>
+                          <li>Excerpt: Up to 1,000 characters (increased from 300)</li>
+                          <li>Content: No character limit - write as much as you need!</li>
+                          <li>Comments: Up to 5,000 characters (increased from 2,000)</li>
+                          <li>File uploads: Up to 10MB for images (increased from 5MB)</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
                 {/* Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

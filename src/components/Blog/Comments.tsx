@@ -16,6 +16,7 @@ interface Comment {
   likeCount?: number;
   dislikeCount?: number;
   likedBy?: string[];
+  userId?: string; // Add userId to track comment ownership
 }
 
 interface CommentsProps {
@@ -381,10 +382,10 @@ const Comments: React.FC<CommentsProps> = ({
                   </p>
 
                   {/* Optional footer actions (hidden for now) */}
-                  {/* <div className="mt-4 flex items-center justify-end gap-4 text-sm">
+                  <div className="mt-4 flex items-center justify-end gap-4 text-sm">
                     <button className="text-red-600 hover:text-red-700">Delete</button>
                     <button className="text-primary-600 hover:text-primary-700">Edit</button>
-                  </div> */}
+                  </div>
                 </div>
               </div>
             </li>
@@ -431,7 +432,14 @@ const Comments: React.FC<CommentsProps> = ({
               </div>
               <div>
                 <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Comment</label>
-                <textarea value={cText} onChange={e => setCText(e.target.value)} rows={4} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Write your comment..." />
+                <textarea value={cText} onChange={e => setCText(e.target.value)} rows={6} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" placeholder="Write your comment... (Up to 5000 characters)" maxLength={5000} />
+                {/* Comment character count */}
+                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <span>{cText.length}/5000 characters</span>
+                  <span className={`${cText.length > 4500 ? 'text-red-600' : cText.length > 3500 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {cText.length > 5000 ? 'Exceeds limit!' : 'Within limit'}
+                  </span>
+                </div>
               </div>
               {/* Optional Avatar Upload */}
               <div>
