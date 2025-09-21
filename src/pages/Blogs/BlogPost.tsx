@@ -18,6 +18,8 @@ import {
   Mail,
   X,
 } from "lucide-react";
+import { useLiveTimeAgo, formatAbsoluteDate } from "../../utils/time";
+import BookReaderLoader from "../../components/Loaders/BookReaderLoader";
 import RelatedArticles from '../../components/Blog/RelatedArticles';
 import Comments from '../../components/Blog/Comments';
 
@@ -68,17 +70,7 @@ function getValidDateString(dateValue: any, fallback: string = "") {
   if (isNaN(dateObj.getTime())) return fallback;
   return dateObj.toISOString();
 }
-function getValidLocaleDate(dateValue: any, fallback: string = "Unknown date"): string {
-  if (!dateValue) return fallback;
-  const dateObj = new Date(dateValue);
-  if (isNaN(dateObj.getTime())) return fallback;
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(dateObj);
-}
+// (removed getValidLocaleDate - replaced by formatAbsoluteDate from utils/time)
 
 // ... existing code ...
 
@@ -98,6 +90,7 @@ const BlogPost: React.FC = () => {
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [currentUserId] = useState(() => generateUserId());
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const timeAgo = useLiveTimeAgo(blogPost?.publishedAt || blogPost?.createdAt);
 
   // Show notification helper
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -216,8 +209,8 @@ const BlogPost: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-lg">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center">
+        <BookReaderLoader label="Loading Blog Post..." />
       </div>
     );
   }
@@ -569,7 +562,11 @@ const BlogPost: React.FC = () => {
             <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
-                {getValidLocaleDate(blogPost.publishedAt || blogPost.createdAt)}
+                {formatAbsoluteDate(blogPost.publishedAt || blogPost.createdAt)}
+                <span className="mx-1">•</span>
+                <span title={formatAbsoluteDate(blogPost.publishedAt || blogPost.createdAt)}>
+                  {timeAgo}
+                </span>
               </span>
               <span className="flex items-center">
                 <Clock className="w-4 h-4 mr-1" />

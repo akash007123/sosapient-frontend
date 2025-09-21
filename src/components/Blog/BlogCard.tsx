@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, User, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight } from 'lucide-react';
+import { useLiveTimeAgo, formatAbsoluteDate } from '../../utils/time';
 
 interface BlogPost {
   id: string;
@@ -22,22 +23,8 @@ interface BlogCardProps {
   index: number;
 }
 
-function formatPrettyDate(dateValue: any, fallback: string = "Unknown date"): string {
-  if (!dateValue) return fallback;
-  const dateObj = new Date(dateValue);
-  if (isNaN(dateObj.getTime())) return fallback;
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  })
-    .format(dateObj)
-    .replace(",", "");
-}
-
-
 const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
+  const timeAgo = useLiveTimeAgo(post.date);
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}
@@ -142,7 +129,9 @@ const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
           </div>
           <div className="flex items-center space-x-1">
             <Calendar className="w-4 h-4" />
-            <span>{formatPrettyDate(post.date)}</span>
+            <span>{formatAbsoluteDate(post.date)}</span>
+            {/* <span className="mx-1">•</span> */}
+            {/* <span title={formatAbsoluteDate(post.date)}>{timeAgo}</span> */}
           </div>
         </div>
 

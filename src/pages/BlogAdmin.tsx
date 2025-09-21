@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Edit, Trash2, Eye, Save, X, Upload, Tag, User, Calendar, BarChart3 } from 'lucide-react';
+import { CKEditor } from '@ckeditor/ckeditor5-react';
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import BookReaderLoader from '../components/Loaders/BookReaderLoader';
 
 interface BlogSection {
   heading: string;
@@ -424,17 +427,31 @@ const BlogAdmin: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Content
                   </label>
-                  <textarea
-                    value={editingBlog.content}
-                    onChange={(e) => setEditingBlog({ ...editingBlog, content: e.target.value })}
-                    rows={25} // Increased from 15 to 25 rows for better visibility of long content
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Write your blog content here... (No character limit - write as much as you need)"
-                  />
-                  {/* Character count feedback */}
+                  <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+                    <CKEditor
+                      editor={ClassicEditor as unknown as any}
+                      data={editingBlog.content}
+                      config={{
+                        toolbar: [
+                          'heading',
+                          '|',
+                          'bold', 'italic', 'link', 'blockQuote',
+                          'bulletedList', 'numberedList',
+                          'insertTable',
+                          '|',
+                          'undo', 'redo'
+                        ]
+                      }}
+                      onChange={(_, editor) => {
+                        const data = editor.getData();
+                        setEditingBlog({ ...editingBlog, content: data });
+                      }}
+                    />
+                  </div>
+                  {/* Character count feedback (no hard limit) */}
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                     <span>Content length: {editingBlog.content.length.toLocaleString()} characters</span>
-                    <span className={`${editingBlog.content.length > 100000 ? 'text-amber-600' : editingBlog.content.length > 500000 ? 'text-red-600' : 'text-green-600'}`}>
+                    <span className={`${editingBlog.content.length > 500000 ? 'text-red-600' : editingBlog.content.length > 100000 ? 'text-amber-600' : 'text-green-600'}`}>
                       {editingBlog.content.length > 500000 ? 'Very long content' : editingBlog.content.length > 100000 ? 'Long content' : 'Normal length'}
                     </span>
                   </div>
@@ -463,17 +480,29 @@ const BlogAdmin: React.FC = () => {
                       </div>
                       <div className="mb-2">
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Content</label>
-                        <textarea
-                          value={section.content}
-                          onChange={e => {
-                            const newSections = [...editingBlog.sections];
-                            newSections[idx].content = e.target.value;
-                            setEditingBlog({ ...editingBlog, sections: newSections });
-                          }}
-                          rows={6} // Increased from 4 to 6 rows for section content
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded"
-                          placeholder="Section content... (No character limit)"
-                        />
+                        <div className="border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
+                          <CKEditor
+                            editor={ClassicEditor as unknown as any}
+                            data={section.content}
+                            config={{
+                              toolbar: [
+                                'heading',
+                                '|',
+                                'bold', 'italic', 'link', 'blockQuote',
+                                'bulletedList', 'numberedList',
+                                'insertTable',
+                                '|',
+                                'undo', 'redo'
+                              ]
+                            }}
+                            onChange={(_, editor) => {
+                              const data = editor.getData();
+                              const newSections = [...editingBlog.sections];
+                              newSections[idx].content = data;
+                              setEditingBlog({ ...editingBlog, sections: newSections });
+                            }}
+                          />
+                        </div>
                       </div>
                       <div className="mb-2">
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Image URL</label>
@@ -911,9 +940,8 @@ const BlogAdmin: React.FC = () => {
           </div>
           
           {loading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">Loading...</p>
+            <div className="p-10 text-center">
+              <BookReaderLoader label="Loading blog page..." />
             </div>
           ) : blogs.length === 0 ? (
             <div className="p-8 text-center">
@@ -933,12 +961,12 @@ const BlogAdmin: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Category
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Tags
-                    </th>
+                    </th> */}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Stats
                     </th>
@@ -964,8 +992,8 @@ const BlogAdmin: React.FC = () => {
                             <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
                               {blog.title}
                             </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
-                              {blog.excerpt}
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {blog.excerpt?.slice(0, Math.ceil(blog.excerpt.length * 0.1))}...
                             </div>
                           </div>
                         </div>
@@ -994,7 +1022,7 @@ const BlogAdmin: React.FC = () => {
                           {blog.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      {/* <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           blog.status === 'published' 
                             ? 'bg-green-100 text-green-800' 
@@ -1004,15 +1032,15 @@ const BlogAdmin: React.FC = () => {
                         }`}>
                           {blog.status}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      </td> */}
+                      {/* <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           {blog.tags && Array.isArray(blog.tags) && blog.tags.length > 0 
                             ? blog.tags.slice(0, 3).join(', ') + (blog.tags.length > 3 ? '...' : '')
                             : 'No tags'
                           }
                         </span>
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         <div>{blog.views || 0} views</div>
                         <div>{blog.likes || 0} likes</div>
