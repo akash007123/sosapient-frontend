@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Helmet } from "react-helmet";
@@ -42,225 +42,49 @@ const Careers: React.FC = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
 
-  const jobOpenings = [
-    {
-      id: 1,
-      title: 'Senior Full-Stack Developer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '45,0000 - 65,0000',
-      experience: '4+ years',
-      description: 'We are looking for a Senior Full-Stack Developer to join our engineering team and help build scalable web applications.',
-      requirements: [
-        '4+ years of experience in full-stack development',
-        'Proficiency in React, Node.js, and TypeScript',
-        'Experience with cloud platforms (AWS, Azure, or GCP)',
-        'Strong understanding of database design and optimization',
-        'Experience with CI/CD pipelines and DevOps practices'
-      ],
-      responsibilities: [
-        'Design and develop scalable web applications',
-        'Collaborate with cross-functional teams',
-        'Mentor junior developers',
-        'Participate in code reviews and technical discussions',
-        'Contribute to architectural decisions'
-      ],
-      benefits: [
-        'Competitive salary and equity',
-        'Health, dental, and vision insurance',
-        'Flexible work arrangements',
-        'Professional development budget',
-        'Unlimited PTO'
-      ]
-    },
-    {
-      id: 2,
-      title: 'UI/UX Designer',
-      department: 'Design',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '35,0000 - 40,0000',
-      experience: '2+ years',
-      description: 'Join our design team to create beautiful and intuitive user experiences for our clients\' applications.',
-      requirements: [
-        '2+ years of UI/UX design experience',
-        'Proficiency in Figma, Sketch, or Adobe XD',
-        'Strong portfolio showcasing design process',
-        'Understanding of user-centered design principles',
-        'Experience with design systems and component libraries'
-      ],
-      responsibilities: [
-        'Create wireframes, prototypes, and high-fidelity designs',
-        'Conduct user research and usability testing',
-        'Collaborate with developers and product managers',
-        'Maintain and evolve design systems',
-        'Present design concepts to stakeholders'
-      ],
-      benefits: [
-        'Competitive salary and benefits',
-        'Remote work flexibility',
-        'Design conference attendance',
-        'Latest design tools and software',
-        'Creative freedom and autonomy'
-      ]
-    },
-    {
-      id: 3,
-      title: 'DevOps Engineer',
-      department: 'Infrastructure',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '60,0000 - 80,0000',
-      experience: '4+ years',
-      description: 'Help us build and maintain robust infrastructure and deployment pipelines for our applications.',
-      requirements: [
-        '4+ years of DevOps/Infrastructure experience',
-        'Experience with containerization (Docker, Kubernetes)',
-        'Proficiency in cloud platforms and services',
-        'Knowledge of Infrastructure as Code (Terraform, CloudFormation)',
-        'Experience with monitoring and logging tools'
-      ],
-      responsibilities: [
-        'Design and maintain CI/CD pipelines',
-        'Manage cloud infrastructure and services',
-        'Implement monitoring and alerting systems',
-        'Ensure security and compliance standards',
-        'Optimize system performance and costs'
-      ],
-      benefits: [
-        'Competitive compensation package',
-        'Health and wellness benefits',
-        'Professional certification support',
-        'Flexible working hours',
-        'Stock options'
-      ]
-    },
-    {
-      id: 4,
-      title: 'Mobile App Developer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '65,0000 - 75,0000',
-      experience: '3+ years',
-      description: 'Develop high-quality mobile applications for iOS and Android platforms using modern frameworks.',
-      requirements: [
-        '3+ years of mobile app development experience',
-        'Proficiency in React Native or Flutter',
-        'Experience with native iOS/Android development',
-        'Knowledge of mobile app deployment processes',
-        'Understanding of mobile UI/UX best practices'
-      ],
-      responsibilities: [
-        'Develop cross-platform mobile applications',
-        'Optimize app performance and user experience',
-        'Integrate with APIs and third-party services',
-        'Collaborate with designers and backend developers',
-        'Maintain and update existing applications'
-      ],
-      benefits: [
-        'Competitive salary and bonuses',
-        'Comprehensive health coverage',
-        'Mobile device allowance',
-        'Learning and development opportunities',
-        'Team building activities'
-      ]
-    },
-    {
-      id: 5,
-      title: 'Product Manager',
-      department: 'Product',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '50,0000 - 65,0000',
-      experience: '3+ years',
-      description: 'Lead product strategy and work with cross-functional teams to deliver exceptional user experiences.',
-      requirements: [
-        '3+ years of product management experience',
-        'Strong analytical and problem-solving skills',
-        'Experience with agile development methodologies',
-        'Excellent communication and leadership skills',
-        'Technical background preferred'
-      ],
-      responsibilities: [
-        'Define product roadmap and strategy',
-        'Gather and prioritize product requirements',
-        'Work closely with engineering and design teams',
-        'Analyze user feedback and market trends',
-        'Drive product launches and go-to-market strategies'
-      ],
-      benefits: [
-        'Competitive salary and equity',
-        'Comprehensive benefits package',
-        'Professional development budget',
-        'Flexible work environment',
-        'Leadership training opportunities'
-      ]
-    },
-    {
-      id: 6,
-      title: 'Junior Frontend Developer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '40,0000 - 55,0000',
-      experience: '1-2 years',
-      description: 'Start your career with us as a Junior Frontend Developer and grow your skills in modern web development.',
-      requirements: [
-        '1-2 years of frontend development experience',
-        'Proficiency in HTML, CSS, and JavaScript',
-        'Basic knowledge of React or Vue.js',
-        'Understanding of responsive design principles',
-        'Eagerness to learn and grow'
-      ],
-      responsibilities: [
-        'Develop user interfaces for web applications',
-        'Collaborate with senior developers and designers',
-        'Write clean, maintainable code',
-        'Participate in code reviews and team meetings',
-        'Learn new technologies and best practices'
-      ],
-      benefits: [
-        'Competitive entry-level salary',
-        'Mentorship program',
-        'Health and dental insurance',
-        'Remote work flexibility',
-        'Career growth opportunities'
-      ]
-    },
-    {
-      id: 7,
-      title: 'Frontend Developer Intern',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '18,0000 - 22,0000',
-      experience: '0-1 years',
-      description: 'Kickstart your development career with us as a Frontend Developer Intern. We’re looking for someone passionate about web development who wants to grow in a supportive and fast-paced environment. You will work alongside experienced engineers and designers, gaining hands-on experience in building responsive, modern web interfaces.',
-      requirements: [
-        '0-1 years of frontend development experience',
-        'Proficiency in HTML, CSS, and JavaScript',
-        'Basic knowledge of React or Angular',
-        'Understanding of responsive design principles',
-        'Eagerness to learn and grow'
-      ],
-      responsibilities: [
-        'Build and maintain user-friendly interfaces for web applications',
-        'Collaborate with senior developers and UI/UX designers',
-        'Write clean, well-documented, and maintainable code',
-        'Participate in regular team meetings, code reviews, and agile ceremonies',
-        'Stay up-to-date with the latest web technologies and frameworks'
-      ],
-      benefits: [
-        'Competitive entry-level salary',
-        'Remote-first work culture',
-        'Mentorship and training from experienced professionals',
-        'Health and dental insurance',
-        'Clear career path and professional growth opportunities'
-      ]
-    }
-  ];
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState<boolean>(false);
+
+  const formatRelative = (iso?: string) => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    const diff = Date.now() - date.getTime();
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+    const sec = Math.round(diff / 1000);
+    const min = Math.round(sec / 60);
+    const hr = Math.round(min / 60);
+    const day = Math.round(hr / 24);
+    const week = Math.round(day / 7);
+    const month = Math.round(day / 30);
+    const year = Math.round(day / 365);
+    if (Math.abs(sec) < 60) return rtf.format(-sec, 'second');
+    if (Math.abs(min) < 60) return rtf.format(-min, 'minute');
+    if (Math.abs(hr) < 24) return rtf.format(-hr, 'hour');
+    if (Math.abs(day) < 7) return rtf.format(-day, 'day');
+    if (Math.abs(week) < 5) return rtf.format(-week, 'week');
+    if (Math.abs(month) < 12) return rtf.format(-month, 'month');
+    return rtf.format(-year, 'year');
+  };
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setLoadingJobs(true);
+        const res = await fetch(`${import.meta.env.VITE_BASE_URL}/api/jobs?status=open`);
+        const data = await res.json();
+        if (data?.success) {
+          setJobs(Array.isArray(data.data) ? data.data : []);
+        } else {
+          setJobs([]);
+        }
+      } catch (e) {
+        setJobs([]);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+    fetchJobs();
+  }, []);
 
   const benefits = [
     {
@@ -583,9 +407,15 @@ const Careers: React.FC = () => {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {jobOpenings.map((job, index) => (
+            {loadingJobs && (
+              <div className="col-span-full text-center text-gray-500 dark:text-gray-400">Loading jobs...</div>
+            )}
+            {!loadingJobs && jobs.length === 0 && (
+              <div className="col-span-full text-center text-gray-500 dark:text-gray-400">No open positions right now. Please check back later.</div>
+            )}
+            {!loadingJobs && jobs.map((job, index) => (
               <motion.div
-                key={job.id}
+                key={job._id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
@@ -599,6 +429,9 @@ const Careers: React.FC = () => {
                     </h3>
                     <p className="text-primary-600 dark:text-primary-400 font-medium">
                       {job.department}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Posted {formatRelative(job.createdAt)}
                     </p>
                   </div>
                   <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium rounded-full">
@@ -625,15 +458,19 @@ const Careers: React.FC = () => {
                   </div>
                 </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleApply(job)}
-                  className="w-full py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                <a
+                  href={`/careers/${job._id}`}
+                  className="block w-full"
                 >
-                  <span>Apply Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </motion.button>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <span>Apply Now</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.div>
+                </a>
               </motion.div>
             ))}
           </div>

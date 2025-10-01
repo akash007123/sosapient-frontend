@@ -16,6 +16,9 @@ import CareerTable from './components/CareerTable';
 import ContactTable from './components/ContactTable';
 import SubscriberTable from './components/SubscriberTable';
 import Portfolio from './components/Portfolio/Portfolio';
+import JobAdmin from './pages/JobAdmin';
+import JobDetails from './pages/JobDetails';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
 
 function App() {
@@ -47,13 +50,17 @@ function App() {
                 <Route path="blog" element={<Blog />} />
                 <Route path="blog/:slug" element={<BlogPost />} />
                 <Route path="careers" element={<Careers />} />
+                <Route path="careers/:jobId" element={<JobDetails />} />
                 <Route path="contact" element={<Contact />} />
                 <Route path="portfolio" element={<Portfolio />} />
               </Route>
+
+              {/* Admin Routes */}
               <Route path="contact-table" element={<ContactTable />} />
               <Route path="career-table" element={<CareerTable />} />
               <Route path="subscriber-table" element={<SubscriberTable />} />
               <Route path="blog-admin" element={<BlogAdmin />} />
+              <Route path="job-admin" element={<JobAdmin />} />
             </Routes>
           </AnimatePresence>
         </div>
