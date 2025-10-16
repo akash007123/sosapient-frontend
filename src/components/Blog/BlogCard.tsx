@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, ArrowRight } from 'lucide-react';
+import { Calendar, Clock, ArrowRight } from 'lucide-react';
 import { useLiveTimeAgo, formatAbsoluteDate } from '../../utils/time';
 
 interface BlogPost {
@@ -122,10 +122,10 @@ const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
               />
               <span>{post.author}</span>
             </motion.div>
-            {/* <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-1">
               <Clock className="w-4 h-4" />
-              <span>{post.readTime}</span>
-            </div> */}
+              <span>{post.readTime || '5 min read'}</span>
+            </div>
           </div>
           <div className="flex items-center space-x-1">
             <Calendar className="w-4 h-4" />

@@ -66,7 +66,7 @@ const Blog: React.FC = () => {
           author: post.author.name,
           authorImage: normalizeUrl(post.author.image),
           date: post.publishedAt || post.createdAt,
-          readTime: post.readTime,
+          readTime: post.readTime || '5 min read',
           category: post.category,
           tags: post.tags
         }));

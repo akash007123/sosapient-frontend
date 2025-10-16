@@ -5,8 +5,8 @@ import {
   Smartphone, 
   Palette, 
   Database, 
-  Cloud, 
-  Shield
+  // Cloud, 
+  // Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -41,20 +41,20 @@ const Services: React.FC = () => {
       features: ['API Development', 'Database Design', 'Microservices'],
       gradient: 'from-green-500 to-teal-500'
     },
-    {
-      icon: Cloud,
-      title: 'Cloud Solutions',
-      description: 'Cloud infrastructure setup, migration, and optimization for enhanced performance.',
-      features: ['AWS/Azure/GCP', 'DevOps', 'Scalability'],
-      gradient: 'from-indigo-500 to-purple-500'
-    },
-    {
-      icon: Shield,
-      title: 'Cybersecurity',
-      description: 'Comprehensive security solutions to protect your applications and sensitive data.',
-      features: ['Security Audits', 'Penetration Testing', 'Compliance'],
-      gradient: 'from-red-500 to-pink-500'
-    }
+    // {
+    //   icon: Cloud,
+    //   title: 'Cloud Solutions',
+    //   description: 'Cloud infrastructure setup, migration, and optimization for enhanced performance.',
+    //   features: ['AWS/Azure/GCP', 'DevOps', 'Scalability'],
+    //   gradient: 'from-indigo-500 to-purple-500'
+    // },
+    // {
+    //   icon: Shield,
+    //   title: 'Cybersecurity',
+    //   description: 'Comprehensive security solutions to protect your applications and sensitive data.',
+    //   features: ['Security Audits', 'Penetration Testing', 'Compliance'],
+    //   gradient: 'from-red-500 to-pink-500'
+    // }
   ];
 
   return (

@@ -37,7 +37,7 @@ const BlogPreview: React.FC = () => {
           image: post.image,
           author: post?.author?.name || 'Unknown Author',
           date: post.publishedAt || post.createdAt,
-          readTime: post.readTime,
+          readTime: post.readTime || '5 min read',
           category: post.category,
           slug: post.slug,
         }));
