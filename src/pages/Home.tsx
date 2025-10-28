@@ -6,7 +6,7 @@ import TechStack from '../components/Home/TechStack';
 import Testimonials from '../components/Home/Testimonials';
 import BlogPreview from '../components/Home/BlogPreview';
 import CTA from '../components/Home/CTA';
-import FeaturesSection from '../components/Home/FeaturesSection';
+// import FeaturesSection from '../components/Home/FeaturesSection';
 import ProcessSection from '../components/Home/ProcessSection';
 import FaqSection from '../components/Home/FaqSection';
 // import GoogleReviews from '../components/Home/GoogleReviews';
@@ -18,7 +18,7 @@ const Home: React.FC = () => {
       <Services />
       <About />
       <TechStack />
-      <FeaturesSection/>
+      {/* <FeaturesSection/> */}
       <ProcessSection/>
       <FaqSection/>
       {/* <GoogleReviews/> */}

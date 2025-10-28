@@ -3,6 +3,21 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Calendar, Clock, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+interface ApiBlogPost {
+  _id: string;
+  title: string;
+  excerpt: string;
+  image: string;
+  author?: {
+    name: string;
+  };
+  publishedAt?: string;
+  createdAt: string;
+  readTime?: string;
+  category: string;
+  slug: string;
+}
+
 interface BlogItem {
   id: string;
   title: string;
@@ -30,7 +45,7 @@ const BlogPreview: React.FC = () => {
         if (!data.success) {
           throw new Error(data.message || 'Failed to load blogs');
         }
-        const transformed: BlogItem[] = (data.data || []).map((post: any) => ({
+        const transformed: BlogItem[] = (data.data || []).map((post: ApiBlogPost) => ({
           id: post._id,
           title: post.title,
           excerpt: post.excerpt,
@@ -42,8 +57,9 @@ const BlogPreview: React.FC = () => {
           slug: post.slug,
         }));
         setPosts(transformed);
-      } catch (e: any) {
-        setError(e?.message || 'Unable to fetch blogs');
+      } catch (e: unknown) {
+        const error = e as Error;
+        setError(error?.message || 'Unable to fetch blogs');
       } finally {
         setLoading(false);
       }
