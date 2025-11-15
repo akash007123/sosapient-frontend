@@ -76,7 +76,7 @@ const Blog: React.FC = () => {
         setError(data.error || 'Failed to fetch blogs.');
         setBlogPosts([]);
       }
-    } catch (error) {
+    } catch {
       setError('Error fetching blogs. Please try again later.');
       setBlogPosts([]);
     } finally {
@@ -95,7 +95,7 @@ const Blog: React.FC = () => {
       } else if (data.success) {
         setCategories(['All', ...data.data]);
       }
-    } catch (error) {
+    } catch {
       setCategories(defaultCategories);
     }
   };

@@ -133,33 +133,48 @@ const BlogAdmin: React.FC = () => {
     try {
       setLoading(true);
       const formData = new FormData();
-      
+
       console.log('=== FRONTEND SAVE DEBUG ===');
       console.log('editingBlog.tags:', editingBlog.tags);
       console.log('editingBlog.seo:', editingBlog.seo);
       console.log('editingBlog.seo.keywords:', editingBlog.seo?.keywords);
       console.log('Tags type:', typeof editingBlog.tags, 'Length:', editingBlog.tags?.length);
       console.log('Keywords type:', typeof editingBlog.seo?.keywords, 'Length:', editingBlog.seo?.keywords?.length);
-      
-      // Always append tags and seo fields, even if empty
-      const tagsToSend = editingBlog.tags || [];
+
+      // Always append tags and seo fields, even if empty - ensure we have the latest state
+      const tagsToSend = Array.isArray(editingBlog.tags) ? editingBlog.tags : [];
       const seoToSend = editingBlog.seo || { metaTitle: '', metaDescription: '', keywords: [] };
-      
+      const keywordsToSend = Array.isArray(seoToSend.keywords) ? seoToSend.keywords : [];
+
+      // Create clean SEO object with proper keywords array
+      const cleanSeoToSend = {
+        ...seoToSend,
+        keywords: keywordsToSend
+      };
+
       formData.append('tags', JSON.stringify(tagsToSend));
-      formData.append('seo', JSON.stringify(seoToSend));
+      formData.append('seo', JSON.stringify(cleanSeoToSend));
       // CSV fallbacks to improve robustness
-      formData.append('tagsCsv', (tagsToSend || []).join(','));
-      formData.append('seoKeywordsCsv', (seoToSend.keywords || []).join(','));
-      
+      formData.append('tagsCsv', tagsToSend.join(','));
+      formData.append('seoKeywordsCsv', keywordsToSend.join(','));
+
       console.log('Force appending tags:', JSON.stringify(tagsToSend));
-      console.log('Force appending seo:', JSON.stringify(seoToSend));
+      console.log('Force appending seo:', JSON.stringify(cleanSeoToSend));
+
+      // Debug: Check what we're actually sending
+      console.log('=== FINAL FORM DATA DEBUG ===');
+      for (const [key, value] of formData.entries()) {
+        if (key === 'tags' || key === 'seo') {
+          console.log(`${key}:`, value);
+        }
+      }
 
       // Only append other fields that have values and are not internal MongoDB fields
       Object.keys(editingBlog).forEach(key => {
         const value = editingBlog[key as keyof BlogPost];
-        
-        // Skip internal MongoDB fields, undefined/null values, and tags/seo (already handled above)
-        if (key.startsWith('_') || key === '__v' || value === undefined || value === null || key === 'tags' || key === 'seo') {
+
+        // Skip internal MongoDB fields, undefined/null values, and tags/seo/readTime (already handled above)
+        if (key.startsWith('_') || key === '__v' || value === undefined || value === null || key === 'tags' || key === 'seo' || key === 'readTime') {
           return;
         }
         
@@ -190,7 +205,7 @@ const BlogAdmin: React.FC = () => {
 
       const url = editingBlog._id ? `${import.meta.env.VITE_BASE_URL}/api/blogs/${editingBlog._id}` : `${import.meta.env.VITE_BASE_URL}/api/blogs`;
       const method = editingBlog._id ? 'PUT' : 'POST';
-      for (let [key, value] of formData.entries()) {
+      for (const [key, value] of formData.entries()) {
         console.log(`${key}:`, value);
       }
 
@@ -338,25 +353,30 @@ const BlogAdmin: React.FC = () => {
   };
 
   const addTag = (tag: string) => {
-    if (editingBlog && tag.trim()) {
-      const currentTags = editingBlog.tags || [];
-      if (!currentTags.includes(tag.trim())) {
-        setEditingBlog({
-          ...editingBlog,
-          tags: [...currentTags, tag.trim()]
-        });
-      }
+    if (tag.trim()) {
+      setEditingBlog(prev => {
+        if (!prev) return prev;
+        const currentTags = prev.tags || [];
+        if (!currentTags.includes(tag.trim())) {
+          return {
+            ...prev,
+            tags: [...currentTags, tag.trim()]
+          };
+        }
+        return prev;
+      });
     }
   };
 
   const removeTag = (tagToRemove: string) => {
-    if (editingBlog) {
-      const currentTags = editingBlog.tags || [];
-      setEditingBlog({
-        ...editingBlog,
+    setEditingBlog(prev => {
+      if (!prev) return prev;
+      const currentTags = prev.tags || [];
+      return {
+        ...prev,
         tags: currentTags.filter(tag => tag !== tagToRemove)
-      });
-    }
+      };
+    });
   };
 
   const calculateReadTime = (content: string) => {
@@ -737,10 +757,11 @@ const BlogAdmin: React.FC = () => {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const value = (e.currentTarget as HTMLInputElement).value.trim();
+                        const input = e.currentTarget as HTMLInputElement;
+                        const value = input.value.trim();
                         if (value) {
                           addTag(value);
-                          (e.currentTarget as HTMLInputElement).value = '';
+                          input.value = '';
                         }
                       }
                     }}
@@ -897,13 +918,20 @@ const BlogAdmin: React.FC = () => {
                           e.preventDefault();
                           const input = e.currentTarget as HTMLInputElement;
                           const keyword = input.value.trim();
-                          if (keyword && !(editingBlog.seo?.keywords || []).includes(keyword)) {
-                            setEditingBlog({
-                              ...editingBlog,
-                              seo: {
-                                ...editingBlog.seo,
-                                keywords: [...(editingBlog.seo?.keywords || []), keyword]
+                          if (keyword) {
+                            setEditingBlog(prev => {
+                              if (!prev) return prev;
+                              const currentKeywords = prev.seo?.keywords || [];
+                              if (!currentKeywords.includes(keyword)) {
+                                return {
+                                  ...prev,
+                                  seo: {
+                                    ...prev.seo,
+                                    keywords: [...currentKeywords, keyword]
+                                  }
+                                };
                               }
+                              return prev;
                             });
                             input.value = '';
                           }

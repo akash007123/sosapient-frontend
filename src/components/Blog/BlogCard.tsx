@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, ArrowRight } from 'lucide-react';
-import { useLiveTimeAgo, formatAbsoluteDate } from '../../utils/time';
+import { formatAbsoluteDate } from '../../utils/time';
 
 interface BlogPost {
   id: string;
@@ -24,7 +24,6 @@ interface BlogCardProps {
 }
 
 const BlogCard: React.FC<BlogCardProps> = ({ post, index }) => {
-  const timeAgo = useLiveTimeAgo(post.date);
   return (
     <motion.article
       initial={{ opacity: 0, y: 20 }}

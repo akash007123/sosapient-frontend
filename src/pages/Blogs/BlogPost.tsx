@@ -147,7 +147,7 @@ const BlogPost: React.FC = () => {
         } else {
           setError(data.message || "Blog post not found.");
         }
-      } catch (err) {
+      } catch {
         setError("Error fetching blog post.");
       } finally {
         setLoading(false);
@@ -486,7 +486,7 @@ const BlogPost: React.FC = () => {
                         setIsLiked(true);
                         localStorage.setItem(`liked:${blogPost._id}`, "1");
                       }
-                    } catch (e) {
+                    } catch {
                       // noop
                     }
                   }}
@@ -668,7 +668,9 @@ const BlogPost: React.FC = () => {
                                 setShareSuccess(true);
                                 setShareOpen(false);
                                 setTimeout(() => setShareSuccess(false), 2000);
-                              } catch {}
+                              } catch {
+                                // Ignore clipboard errors
+                              }
                             }}
                             className="group flex flex-col items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
                           >

@@ -127,7 +127,7 @@ const Comments: React.FC<CommentsProps> = ({
         }));
         setComments(items);
       }
-    } catch (e) {
+    } catch {
       // ignore
     } finally {
       setCommentsLoading(false);
@@ -309,7 +309,7 @@ const Comments: React.FC<CommentsProps> = ({
       } else {
         setCError(json.message || 'Failed to add comment');
       }
-    } catch (err) {
+    } catch {
       setCError('Network error while adding comment');
     } finally {
       setCSubmitting(false);
